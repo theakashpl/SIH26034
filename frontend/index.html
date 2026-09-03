@@ -457,6 +457,17 @@
 
         alertCloseBtn.addEventListener('click', hideAlert);
 
+        // Backend API configuration
+        const API_BASE_URL = (
+            window.location.origin.includes('5500') ||
+            window.location.origin.includes('5501') ||
+            window.location.origin.includes('3000') ||
+            window.location.origin.includes('5173') ||
+            window.location.origin.includes('8080') ||
+            window.location.protocol === 'file:' ||
+            (window.location.port && window.location.port !== '8000')
+        ) ? 'http://127.0.0.1:8000' : '';
+
         // API Scan Call
         analyzeBtn.addEventListener('click', async function() {
             const isUploadActive = !viewUpload.classList.contains('hidden');
@@ -478,7 +489,7 @@
             hideAlert();
 
             try {
-                const response = await fetch('/scan', {
+                const response = await fetch(`${API_BASE_URL}/scan`, {
                     method: 'POST',
                     body: formData
                 });
@@ -492,8 +503,12 @@
                 renderAuditResults(data);
 
             } catch (err) {
-                showAlert(err.message || "Failed to analyze product. Please verify server connection.");
-                console.error(err);
+                console.error("Scan request failed:", err);
+                let msg = err.message || "Failed to analyze product.";
+                if (err.message && (err.message.includes('Failed to fetch') || err.message.includes('NetworkError'))) {
+                    msg = `Unable to connect to backend at ${API_BASE_URL || 'http://127.0.0.1:8000'}. Make sure the FastAPI server is running: 'python -m uvicorn backend.main:app --reload --port 8000'`;
+                }
+                showAlert(msg);
             } finally {
                 analyzeBtnSpinner.classList.add('hidden');
                 analyzeBtnIcon.classList.remove('hidden');
