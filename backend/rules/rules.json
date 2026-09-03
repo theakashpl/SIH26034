@@ -1,0 +1,38 @@
+[
+  {
+    "id": "LM-001",
+    "name": "Product Name",
+    "type": "required",
+    "severity": "HIGH"
+  },
+  {
+    "id": "LM-002",
+    "name": "Manufacturer / Packer / Importer",
+    "type": "required",
+    "severity": "HIGH"
+  },
+  {
+    "id": "LM-003",
+    "name": "Net Quantity",
+    "type": "quantity",
+    "severity": "HIGH"
+  },
+  {
+    "id": "LM-004",
+    "name": "MRP",
+    "type": "mrp",
+    "severity": "HIGH"
+  },
+  {
+    "id": "LM-005",
+    "name": "Manufacturing / Packing Date",
+    "type": "date",
+    "severity": "MEDIUM"
+  },
+  {
+    "id": "LM-006",
+    "name": "Consumer Care",
+    "type": "contact",
+    "severity": "MEDIUM"
+  }
+]
