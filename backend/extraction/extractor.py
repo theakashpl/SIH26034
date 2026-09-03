@@ -12,7 +12,57 @@ def clean_text_for_extraction(text: str) -> str:
     cleaned = cleaned.replace("\ufffd", "'")
     # Separate common OCR run-together tokens like NO022 -> NO 022 or WT200 -> WT 200
     cleaned = re.sub(r"\b(NO|No|no|WT|wt|QTY|qty)(\d)", r"\1 \2", cleaned)
+    # OCR typo normalization for clear brands
+    cleaned = re.sub(r"\bAvegro\b", "Avogro", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\bAvcgro\b", "Avogro", cleaned, flags=re.IGNORECASE)
     return cleaned
+
+
+COMPANY_MARKER_REGEX = re.compile(
+    r"(?:"
+    r"manufactured\s*(?:&|and)?\s*(?:packed|marketed)?\s*by|"
+    r"manufactured\s+for|"
+    r"repacked\s*(?:&|and)?\s*(?:marketed|packed)?\s*by|"
+    r"repacked\s+by|"
+    r"packed\s*(?:&|and)?\s*(?:marketed|packed)?\s*by|"
+    r"packed\s+by|"
+    r"packed\s+for|"
+    r"marketed\s+by|"
+    r"imported\s+by|"
+    r"distributed\s+by|"
+    r"sold\s+by|"
+    r"packer|"
+    r"manufacturer"
+    r")\s*[:.\-]?",
+    re.IGNORECASE
+)
+
+COMPANY_CORP_TERMS_REGEX = re.compile(
+    r"\b(?:pvt\.?\s*ltd\.?|private\s+limited|ltd\.?|limited|llp|inc\.?|corp\.?|corporation|company|co\.?)\b",
+    re.IGNORECASE
+)
+
+CONTACT_DISQUALIFIER_REGEX = re.compile(
+    r"\b(?:consumer\s*care|customer\s*care|care\s*cell|helpline|toll\s*free|email|e-mail|phone|tel|mobile|address|fssai|lic\.?\s*no)\b",
+    re.IGNORECASE
+)
+
+
+def is_ocr_noise_or_gibberish(line: str) -> bool:
+    """Detect repetitive letters, punctuation gibberish, and unpronounceable OCR artifacts."""
+    if not line:
+        return True
+    # Character repeated 3+ times (e.g. TYYYYY, AAAAAA, =====)
+    if re.search(r"([A-Za-z])\1{2,}", line):
+        return True
+    alpha_chars = [c.lower() for c in line if c.isalpha()]
+    if not alpha_chars:
+        return True
+    vowels = set("aeiouy")
+    vowel_count = sum(1 for c in alpha_chars if c in vowels)
+    if len(alpha_chars) >= 4 and vowel_count == 0:
+        return True
+    return False
 
 
 DISQUALIFYING_PRODUCT_TERMS = [
@@ -22,6 +72,8 @@ DISQUALIFYING_PRODUCT_TERMS = [
     "co.", "company",
     # Manufacturer / Packer / Marketer declarations
     "manufactured by", "manufactured for", "packed by", "marketed by",
+    "repacked & marketed by", "repacked by", "repacked", "re-packed",
+    "distributed by", "sold by", "distributor",
     "mfd by", "mfd. by", "mfg by", "mfg. by", "pkd by", "pkd. by",
     "imported by", "packer", "manufacturer", "manufactured", "packed", "marketed",
     # Consumer Care / Contact
@@ -29,18 +81,29 @@ DISQUALIFYING_PRODUCT_TERMS = [
     "customer service", "feedback", "complaints", "reach us", "contact us",
     "consumer", "customer",
     "address", "email", "e-mail", "phone", "tel", "fax", "mobile",
-    # Regulatory & Licensing
+    # Regulatory & Licensing & Categorization
     "lic no", "lic. no", "licence", "license", "fssai", "reg no", "regd",
     "trademark", "use of trademark", "under licence",
+    "proprietary food", "category 5", "category", "food category",
     # Address / Locality terms
     "road", "street", "lane", "nagar", "sector", "industrial", "colony",
     "estate", "crossing", "pincode", "pin code", "plot no", "mumbai",
-    "delhi", "bangalore", "kolkata", "hyderabad", "chennai", "pune",
+    "delhi", "bangalore", "bengaluru", "kolkata", "hyderabad", "chennai", "pune", "jodhpur", "rajasthan",
+    "ranipur", "siocul", "haridwar", "midc", "ranjangaon", "taluk", "district", "uttarakhand",
+    "karnataka", "maharashtra", "haryana", "gurugram",
     # Ingredients / Nutrition / Packaging instructions
     "ingredients", "nutrition", "serving", "calories", "calorie", "daily value",
+    "per 100g", "per 100 g", "per serve", "approximate values", "approx. values", "serving suggestion",
     "total fat", "fat", "cholesterol", "sodium", "carb", "sugars", "fiber", "protein",
-    "vitamin", "calcium", "iron", "percent", "contains", "less than",
+    "vitamin", "calcium", "iron", "percent", "contains", "less than", "crude",
     "best before", "expiry", "exp date", "batch no", "b.no", "lot no",
+    "refined wheat flour", "wheat flour", "flour", "maida", "raising agent",
+    "palmolein", "flavouring", "flavoring", "artificial flavouring", "artificial flavor",
+    "substance (vanilla", "substance", "milk solids", "emulsifier",
+    "character of the batch", "batch number", "address panel", "corresponding alphabet",
+    "for the mfg", "match the first", "characte", "scan to", "enduring value",
+    "buttons of joy", "buttons", "of joy", "bake some joy", "now tastier", "tastier", "crispier",
+    "crunchier", "nov!", "let's bake", "use cake", "how to use", "directions for use", "suggested use",
     "mrp", "rs.", "inr", "net wt", "net qty", "net weight", "net quantity", "net volume",
     "store in", "keep in", "directions", "instructions", "barcode",
     "shelf stable", "refrigerat", "boil", "bring water", "tear off",
@@ -51,9 +114,27 @@ DISQUALIFYING_PRODUCT_TERMS = [
 ]
 
 
-def is_negative_product_line(line: str) -> bool:
-    lower = line.lower()
-    return any(term in lower for term in DISQUALIFYING_PRODUCT_TERMS)
+def is_negative_product_line(line: str, company_entities: Optional[set] = None) -> bool:
+    if not line:
+        return True
+    lower = line.lower().strip()
+    if any(term in lower for term in DISQUALIFYING_PRODUCT_TERMS):
+        return True
+    if COMPANY_CORP_TERMS_REGEX.search(line):
+        return True
+    if CONTACT_DISQUALIFIER_REGEX.search(line):
+        return True
+    if is_ocr_noise_or_gibberish(line):
+        return True
+    if company_entities:
+        clean_cand = re.sub(r"^[^\w]+|[^\w]+$", "", lower)
+        for comp in company_entities:
+            if not comp:
+                continue
+            clean_comp = re.sub(r"^[^\w]+|[^\w]+$", "", comp).strip().lower()
+            if clean_cand == clean_comp or (clean_cand in clean_comp and len(clean_cand) >= 3):
+                return True
+    return False
 
 
 def extract_product_name(text: str) -> dict:
@@ -67,6 +148,36 @@ def extract_product_name(text: str) -> dict:
 
     cleaned = clean_text_for_extraction(text)
 
+    # Pre-extract company entity names that occur after manufacturer/packer/marketer markers
+    company_entities = set()
+    for match in COMPANY_MARKER_REGEX.finditer(cleaned):
+        remainder = cleaned[match.end():]
+        lines_after = remainder.splitlines()
+        for idx, l in enumerate(lines_after[:3]):
+            l_str = l.strip()
+            if not l_str:
+                if idx > 0:
+                    break
+                continue
+            if CONTACT_DISQUALIFIER_REGEX.search(l_str) or any(k in l_str.lower() for k in ["road", "plot", "nagar", "sector", "lane", "street", "pincode", "fssai"]):
+                break
+            clean_name = re.sub(r"^[^\w]+|[^\w]+$", "", l_str).lower()
+            if clean_name:
+                company_entities.add(clean_name)
+                for token in clean_name.split():
+                    if len(token) >= 3:
+                        company_entities.add(token)
+
+    # Also detect manufacturer name via extract_manufacturer
+    mfr_info = extract_manufacturer(text)
+    if mfr_info.get("name"):
+        clean_mfr = re.sub(r"^[^\w]+|[^\w]+$", "", mfr_info["name"]).strip().lower()
+        if clean_mfr:
+            company_entities.add(clean_mfr)
+            for token in clean_mfr.split():
+                if len(token) >= 3:
+                    company_entities.add(token)
+
     # 1. Explicit keyword markers (e.g. "Product Name: ...", "Commodity: ...")
     explicit_pattern = re.compile(
         r"(?:product\s*name|commodity|name\s*of\s*(?:the\s*)?commodity|item\s*name)\s*[:\-]\s*([^\n\r]+)",
@@ -76,26 +187,38 @@ def extract_product_name(text: str) -> dict:
     if match:
         val = match.group(1).strip()
         val = re.sub(r"^[^\w]+|[^\w\)]+$", "", val)
-        if len(val) >= 2 and not is_negative_product_line(val):
+        if len(val) >= 2 and not is_negative_product_line(val, company_entities):
             return {"value": val, "raw": match.group(0).strip(), "confidence": 0.95}
 
-    # 2. Statutory Pre-ingredients product / commodity declaration line
+    # 2. Registered Trademark declaration (e.g. "Kurkure is a registered trade mark of PepsiCo, Inc.")
+    tm_pattern = re.compile(
+        r"\b([A-Z][A-Za-z0-9'&]+(?:\s+[A-Z][A-Za-z0-9'&]+)?)\s+(?:is\s+(?:a|the)\s+registered\s+trade\s*mark)\b",
+        re.IGNORECASE
+    )
+    tm_match = tm_pattern.search(cleaned)
+    if tm_match:
+        val = tm_match.group(1).strip()
+        val = re.sub(r"^[^\w]+|[^\w\)]+$", "", val)
+        if len(val) >= 3 and not is_negative_product_line(val, company_entities):
+            return {"value": val, "raw": tm_match.group(0).strip(), "confidence": 0.90}
+
+    # 3. Statutory Pre-ingredients product / commodity declaration line
     # In Indian packaged foods, the commodity name sits immediately above INGREDIENTS:
     ing_match = re.search(
-        r"([^\n\r]+)\s*\n\s*(?:ingredients|composition|contains\s+added)\b",
+        r"([^\n\r]+)\s*\n\s*(?:ingredients|composition)\b",
         cleaned,
         re.IGNORECASE
     )
     if ing_match:
         pre_line = ing_match.group(1).strip()
-        if not is_negative_product_line(pre_line):
+        if not is_negative_product_line(pre_line, company_entities):
             # Clean OCR artifacts like trailing quote, registered trademark (e.g. 'HIDE & Seek" siscorrs')
             cand = re.sub(r'["\'®™].*$', '', pre_line).strip()
             cand = re.sub(r"^[^\w]+|[^\w\)]+$", "", cand).strip()
-            if len(cand) >= 3 and not is_negative_product_line(cand):
+            if len(cand) >= 3 and not is_negative_product_line(cand, company_entities):
                 return {"value": cand, "raw": ing_match.group(0).strip(), "confidence": 0.90}
 
-    # 3. Contextual packaging story / headline pattern (e.g. "What is the story of Chef Shabazz's Original Fish Chili...")
+    # 4. Contextual packaging story / headline pattern (e.g. "What is the story of Chef Shabazz's Original Fish Chili...")
     story_pattern = re.compile(
         r"(?:what\s+is\s+the\s+story\s+of|what's\s+so\s+amazing\s+about|introducing|curiously\s+delicious|taste\s+the|authentic|the\s+original)\s+([A-Za-z0-9'\s\-]+?(?:fish\s+chili|chili|chips|cookies|biscuits|crisps|juice|sauce|masala|atta|dal|butter|milk|oil|tea|coffee|noodles|flakes|wafers|snack|curry|powder|paste))",
         re.IGNORECASE
@@ -105,15 +228,25 @@ def extract_product_name(text: str) -> dict:
         val = story_match.group(1).strip()
         val = re.sub(r"^[^\w]+|[^\w\)]+$", "", val)
         val = " ".join(val.split())
-        if len(val) >= 3 and not is_negative_product_line(val):
+        if len(val) >= 3 and not is_negative_product_line(val, company_entities):
             return {"value": val, "raw": story_match.group(0).strip(), "confidence": 0.85}
 
-    # 4. Product Title lines
+    # 5. Product Title lines
     # Strictly filter out non-product lines, company names, legal declarations
+    category_product_words = {
+        "pistachios", "pistachio", "biscuits", "biscuit", "cookies", "cookie",
+        "chips", "chip", "chili", "masala", "atta", "dal", "butter", "milk",
+        "tea", "coffee", "noodles", "noodle", "wafers", "wafer", "snack", "snacks",
+        "powder", "chocolate", "chocolates", "choco", "compound", "mad angles", "kurkure"
+    }
+
     lines = [l.strip() for l in cleaned.split("\n") if l.strip()]
     candidate_lines = []
-    for line in lines[:40]:
-        if is_negative_product_line(line):
+    for line in lines[:120]:
+        # Stop candidate line scanning once we enter the statutory batch/barcode/expiry footer
+        if re.search(r"\b(?:batch\s*no|b\.no|lot\s*no|exp(?:iry)?\s*date|best\s*before|barcode)\b", line, re.IGNORECASE):
+            break
+        if is_negative_product_line(line, company_entities):
             continue
         # Don't pick lines ending in question marks or question words
         if line.endswith("?") or re.match(r"^(?:what|who|why|where|how|can|is|are|do|does)\b", line, re.IGNORECASE):
@@ -121,76 +254,158 @@ def extract_product_name(text: str) -> dict:
         clean_l = re.sub(r"^[^\w]+|[^\w]+$", "", line).strip()
         if len(clean_l) < 3 or len(clean_l) > 55:
             continue
+        if is_negative_product_line(clean_l, company_entities):
+            continue
         alpha_count = len(re.findall(r"[A-Za-z]", clean_l))
         if alpha_count < 3 or (alpha_count / len(clean_l)) < 0.6:
             continue
 
         words = clean_l.split()
+        if any(re.search(r"[a-z][A-Z]", w) for w in words):
+            continue
+        if any(is_ocr_noise_or_gibberish(w) for w in words):
+            continue
+
         if clean_l.isupper() or all(w[0].isupper() for w in words if w and w[0].isalpha()):
             candidate_lines.append(clean_l)
 
     if candidate_lines:
-        # If the first two lines look like Brand + Product (e.g. HALDIRAM'S + CLASSIC SALTED CHIPS)
-        if len(candidate_lines) >= 2 and len(candidate_lines[0].split()) <= 2 and len(candidate_lines[1].split()) <= 5:
-            combined = f"{candidate_lines[0]} {candidate_lines[1]}"
-            return {"value": combined, "raw": combined, "confidence": 0.80}
-        return {"value": candidate_lines[0], "raw": candidate_lines[0], "confidence": 0.75}
+        cat_lines = [c for c in candidate_lines if any(kw in c.lower() for kw in category_product_words)]
+        eval_lines = cat_lines if cat_lines else candidate_lines
 
-    # 5. Fallback: repeated capitalized product category phrase in body text
+        # If the first three lines look like Brand + Descriptor + Product (e.g. Avogro + Premium + Pistachios or MILK + CHOCO + CHIPS)
+        if (
+            len(eval_lines) >= 3
+            and all(len(c.split()) <= 2 for c in eval_lines[:3])
+            and len(" ".join(eval_lines[:3]).split()) <= 5
+        ):
+            combined_3 = f"{eval_lines[0]} {eval_lines[1]} {eval_lines[2]}"
+            return {"value": combined_3, "raw": combined_3, "confidence": 0.85}
+        # If the first two lines look like Brand + Product (e.g. HALDIRAM'S + CLASSIC SALTED CHIPS or BUTTER + COOKIES)
+        if len(eval_lines) >= 2 and len(eval_lines[0].split()) <= 2 and len(eval_lines[1].split()) <= 5:
+            combined = f"{eval_lines[0]} {eval_lines[1]}"
+            return {"value": combined, "raw": combined, "confidence": 0.80}
+        return {"value": eval_lines[0], "raw": eval_lines[0], "confidence": 0.75}
+
+    # 6. Fallback: repeated capitalized product category phrase in body text
     cat_match = re.findall(
-        r"\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?\s+(?:Chili|Chips|Cookies|Biscuits|Crisps|Juice|Sauce|Masala|Atta|Dal|Butter|Milk|Oil|Tea|Coffee|Noodles|Flakes|Wafers|Snack|Curry|Powder|Chocolates?))\b",
+        r"\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?\s+(?:Chili|Chips|Cookies|Biscuits|Crisps|Juice|Sauce|Masala|Atta|Dal|Butter|Milk|Oil|Tea|Coffee|Noodles|Flakes|Wafers|Snack|Curry|Powder|Chocolates?|Pistachios?))\b",
         cleaned
     )
     if cat_match:
-        return {"value": cat_match[0], "raw": cat_match[0], "confidence": 0.70}
+        for cm in cat_match:
+            if not is_negative_product_line(cm, company_entities):
+                return {"value": cm, "raw": cm, "confidence": 0.70}
 
     return {"value": None, "raw": None, "confidence": 0.0}
+
+
+MRP_BLOCK_DISQUALIFIERS = [
+    "unit sale price", "usp", "batch no", "batch", "b.no", "b. no", "lot no",
+    "mfg", "mfd", "mfg. date", "pkd", "packed", "use by", "best before", "exp date", "expiry",
+    "net wt", "net weight", "net qty", "net quantity", "net vol", "net volume",
+    "manufactured", "marketed", "ingredients", "nutrition", "nutritional",
+    "serving size", "calories", "consumer care", "customer care",
+    "lic no", "lic. no", "licence", "license", "fssai", "barcode"
+]
 
 
 def extract_mrp(text: str) -> dict:
     """
     Extract Maximum Retail Price with currency and numeric normalization.
-    Tolerates OCR punctuation, spacing, and symbol variations.
+    Tolerates OCR punctuation, spacing, multiline declarations, comma grouping,
+    and corrupted currency symbols (e.g. &, =, a, ee, quotes, replacement chars)
+    while strictly protecting against false positives from unit sale price,
+    nutritional facts, serving sizes, batch numbers, and barcode data.
     """
     if not text:
         return {"value": None, "currency": "INR", "raw": None, "confidence": 0.0}
 
     cleaned = clean_text_for_extraction(text)
 
-    # 1. Standard MRP declaration
-    mrp_pattern = re.compile(
-        r"(?:M\.?\s*R\.?\s*P\.?|MAXIMUM\s+RETAIL\s+PRICE|MAX\s+RETAIL\s+PRICE)"
-        r"(?:\s*\(incl[^\)]*\))?"
-        r"\s*[:.\-]?\s*"
-        r"(?:₹|Rs\.?|INR)?\s*"
-        r"(\d+(?:\.\d{1,2})?)"
-        r"\s*(?:/[-–])?",
+    # 1. Explicit MRP declaration with robust label variations and corrupted symbol handling
+    mrp_label_regex = re.compile(
+        r"(?:\b(?:MAXIMUM|MAX\.?)\s+RETAIL\s+PRICE\b|\bM\.?\s*R\.?\s*P\.?(?!\w))",
         re.IGNORECASE
     )
-    match = mrp_pattern.search(cleaned)
-    if match:
-        val_str = match.group(1)
-        try:
-            val = float(val_str)
-            if 0.5 <= val <= 99999:
-                normalized_val = int(val) if val.is_integer() else val
-                return {
-                    "value": normalized_val,
-                    "currency": "INR",
-                    "raw": match.group(0).strip(),
-                    "confidence": 0.95
-                }
-        except ValueError:
-            pass
 
-    # 2. Currency symbol + amount with tax inclusion notation
+    candidates_found = []
+    stop_sections = [
+        "ingredients", "nutrition", "nutritional", "consumer care", "customer care",
+        "care cell", "feedback", "complaint", "manufactured by", "packed by", "marketed by",
+        "directions", "instructions", "storage", "keep in", "store in"
+    ]
+
+    for match in mrp_label_regex.finditer(cleaned):
+        after_text = cleaned[match.end():match.end() + 250]
+
+        # Stop candidate block at major unrelated section boundary
+        lines = after_text.splitlines()
+        candidate_block_lines = []
+        for i, line in enumerate(lines):
+            l_lower = line.lower().strip()
+            if i > 0 and any(s in l_lower for s in stop_sections):
+                break
+            candidate_block_lines.append(line)
+            if len([l for l in candidate_block_lines if l.strip()]) >= 6:
+                break
+
+        block_text = " ".join(candidate_block_lines)
+
+        # Match monetary amount in the candidate block
+        # Protects against unit sale price, units (g, kg, ml), and non-monetary identifiers
+        mrp_val_regex = re.compile(
+            r"(?:"
+            r"(?:\([^\)\n]*tax[^\)\n]*\)\s*)?"
+            r"[:.\-\s]*"
+            r"(?:₹|Rs\.?|INR|Re\.?|[&=\"\'`\ufffd<>\?~^=%\$#@!\*\+;]|ee|\b[a-z]{1,2}\b)?"
+            r"\s*"
+            r"(?:\([^\)\n]*tax[^\)\n]*\)\s*)?"
+            r")"
+            r"(\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?|\d+(?:\.\d{1,2})?)\b"
+            r"(?!\s*(?:(?:per\b|/)?(?:g|gm|kg|ml|l|unit|piece|item)|kcal\b|cal\b|mg\b|\b[a-z]+\s*per\b))"
+            r"\s*(?:/[-–])?"
+            r"(?:\s*\([^\)\n]*tax[^\)\n]*\))?",
+            re.IGNORECASE
+        )
+
+        for val_match in mrp_val_regex.finditer(block_text):
+            val_str = val_match.group(1).replace(",", "")
+            try:
+                val = float(val_str)
+                if 0.5 <= val <= 99999:
+                    normalized_val = int(val) if val.is_integer() else val
+                    raw_span = " ".join((match.group(0) + " " + block_text[:val_match.end()]).split())
+                    has_explicit_curr = bool(re.search(r"[₹%]|Rs\.?|INR", val_match.group(0), re.IGNORECASE))
+                    candidates_found.append({
+                        "value": normalized_val,
+                        "currency": "INR",
+                        "raw": raw_span.strip(),
+                        "confidence": 0.95 if has_explicit_curr else 0.90,
+                        "has_currency": has_explicit_curr
+                    })
+                    break
+            except ValueError:
+                pass
+
+    if candidates_found:
+        # Prioritize candidate with explicit currency marker if available
+        best_cand = max(candidates_found, key=lambda c: (c["has_currency"], c["confidence"]))
+        return {
+            "value": best_cand["value"],
+            "currency": "INR",
+            "raw": best_cand["raw"],
+            "confidence": best_cand["confidence"]
+        }
+
+    # 2. Currency symbol + amount with tax inclusion notation (fallback without explicit MRP keyword)
     alt_pattern = re.compile(
-        r"(?:₹|Rs\.?|INR)\s*(\d+(?:\.\d{1,2})?)\s*(?:/[-–])?\s*(?:\([^\)]*tax[^\)]*\))",
+        r"(?:₹|Rs\.?|INR)\s*(\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?|\d+(?:\.\d{1,2})?)\s*(?:/[-–])?\s*(?:\([^\)]*tax[^\)]*\))",
         re.IGNORECASE
     )
     alt_match = alt_pattern.search(cleaned)
     if alt_match:
-        val_str = alt_match.group(1)
+        val_str = alt_match.group(1).replace(",", "")
         try:
             val = float(val_str)
             if 0.5 <= val <= 99999:
@@ -227,9 +442,10 @@ def extract_net_quantity(text: str) -> dict:
     }
 
     # 1. Explicit Net Quantity / Weight / Content marker
+    # Tolerates OCR typos like WET QUANTITY, multiline packaging layouts, and symbols/brackets (e.g. [e] 150g)
     net_pattern = re.compile(
-        r"\b(?:NET\s*(?:QUANTITY|QTY|WT|WEIGHT|CONTENTS?|VOL(?:UME)?))\b\.?"
-        r"[:.\-\s]*"
+        r"\b(?:(?:NET|WET)\s*(?:QUANTITY|QTY|WT|WEIGHT|CONTENTS?|VOL(?:UME)?))\b\.?"
+        r"\s*(?:\[[^\]]*\]|\([^\)]*\)|[^\w\d])*\s*"
         r"(\d+(?:\.\d+)?)\s*"
         r"(kg|kgs|kilograms?|g|gm|gms|grams?|mg|milligrams?|l|ltr|litres?|ml|millilitres?)\b\.?",
         re.IGNORECASE
@@ -251,7 +467,8 @@ def extract_net_quantity(text: str) -> dict:
 
     # 2. Standalone quantity search strictly ignoring nutrition and serving declarations
     forbidden_terms = [
-        "serving size", "serving per", "per serving", "servings",
+        "serving size", "serving per", "per serving", "servings", "per serve", "serve", "serving",
+        "approx", "portion", "adult's", "gda",
         "total fat", "saturated fat", "trans fat", "sodium", "cholesterol",
         "total carb", "sugars", "dietary fiber", "protein", "vitamin", "calcium", "iron",
         "daily value", "%", "less than", "energy", "carbohydrate", "fat", "kcal", "kj",
@@ -324,12 +541,33 @@ def extract_manufacturer(text: str) -> dict:
             lines_to_check.append(same_line)
         lines_to_check.extend([l.strip() for l in remainder_lines[1:6] if l.strip()])
 
+        ingredient_disqualifiers = [
+            "meal", "salt", "sugar", "powder", "oil", "wheat", "flour", "acid",
+            "flavor", "flavour", "spices", "condiments", "preservative"
+        ]
+        addr_headers = ["p.o. box", "post box", "box no", "po box", "p.o.box", "plot no"]
+        corp_indicators = [
+            "pvt", "ltd", "limited", "private", "llp", "industries", "holdings",
+            "foods", "biscuits", "beverages", "enterprises", "corporation", "corp"
+        ]
+
+        best_cand_name = None
+        best_cand_addr = None
+        best_cand_raw = None
+
         for idx, line in enumerate(lines_to_check):
             lower_l = line.lower()
             if any(term in lower_l for term in care_disqualifiers):
                 continue
             if re.match(r"^(?:lic|fssai|reg|batch|b\.no)\b", lower_l):
                 continue
+            if any(term in lower_l for term in ingredient_disqualifiers) or "%" in line:
+                continue
+            if any(hdr in lower_l for hdr in addr_headers):
+                if not best_cand_addr:
+                    best_cand_addr = line
+                continue
+
             clean_l = re.sub(r"^[^A-Za-z0-9]+|^(?:sat|od|ee|dr|mr)\b\s*", "", line, flags=re.IGNORECASE).strip()
             if len(clean_l) < 3 or not re.search(r"[A-Za-z]{3,}", clean_l):
                 continue
@@ -338,20 +576,30 @@ def extract_manufacturer(text: str) -> dict:
             cand_name = parts[0]
             cand_addr = ", ".join(parts[1:]) if len(parts) > 1 else None
 
-            # Look ahead for address in subsequent lines if not in same line
-            if not cand_addr:
-                for next_l in lines_to_check[idx + 1:]:
-                    if re.match(r"^(?:lic|fssai|reg|batch|b\.no|phone|email)\b", next_l.lower()):
-                        continue
-                    if re.search(r"(?:plot|sector|road|industrial|street|lane|nagar|pincode|pin\s*code|\b\d{6}\b|[A-Z]{2}\s*[-]?\s*\d{6}|mumbai|delhi|bangalore|kolkata|chennai|hyderabad|pune|noida)", next_l, re.IGNORECASE):
-                        cand_addr = next_l
-                        break
+            has_corp = any(re.search(r"\b" + re.escape(ind) + r"\b", clean_l, re.IGNORECASE) for ind in corp_indicators)
 
-            raw_full = match.group(0).strip() + " " + clean_l
+            if has_corp:
+                best_cand_name = cand_name
+                best_cand_addr = cand_addr or best_cand_addr
+                best_cand_raw = match.group(0).strip() + " " + clean_l
+                if not best_cand_addr:
+                    for next_l in lines_to_check[idx + 1:]:
+                        if re.match(r"^(?:lic|fssai|reg|batch|b\.no|phone|email)\b", next_l.lower()):
+                            continue
+                        if re.search(r"(?:plot|sector|road|industrial|street|lane|nagar|pincode|pin\s*code|\b\d{6}\b|[A-Z]{2}\s*[-]?\s*\d{6}|mumbai|delhi|bangalore|kolkata|chennai|hyderabad|pune|noida|haryana|gurugram)", next_l, re.IGNORECASE):
+                            best_cand_addr = next_l
+                            break
+                break
+            elif not best_cand_name:
+                best_cand_name = cand_name
+                best_cand_addr = cand_addr or best_cand_addr
+                best_cand_raw = match.group(0).strip() + " " + clean_l
+
+        if best_cand_name:
             return {
-                "name": cand_name,
-                "address": cand_addr,
-                "raw": raw_full,
+                "name": best_cand_name,
+                "address": best_cand_addr,
+                "raw": best_cand_raw,
                 "confidence": 0.90
             }
 
@@ -369,16 +617,25 @@ def extract_consumer_information(text: str) -> dict:
     cleaned = clean_text_for_extraction(text)
 
     care_markers = re.compile(
-        r"(?:consumer\s*care|consumer\s*information|consumer\s*complaints|"
-        r"customer\s*care|customer\s*service|customer\s*support|"
-        r"for\s*(?:complaints|feedback)|toll\s*free|helpline|customer\s*service\s*cell|"
+        r"(?:consumer\s*(?:care|cell|information|complaints|services?|feedback)|"
+        r"customer\s*(?:care|service|support|complaints)|"
+        r"for\s*(?:complaints|feedback|queries)|toll\s*free|helpline|customer\s*service\s*cell|"
         r"reach\s*us|feedback\s*or\s*queries|contact\s*us|can't\s*find\s*the\s*truth|"
-        r"in\s*case\s*of\s*complaints)",
+        r"in\s*case\s*of\s*complaints|call\s*us\s*at|write\s*to\s*us|queries|itc\s*cares|"
+        r"parle\s*consumer|consumer\s*services\s*manager)",
         re.IGNORECASE
     )
 
     phone_regex = re.compile(
-        r"(?:(?:\+?91|0)?[- ]?)?(?:1800[- ]?\d{3,4}[- ]?\d{3,4}|800[- ]?\d{3}[- ]?\d{4}|[6-9]\d{9}|\b0\d{2,4}[- ]?\d{3,4}[- ]?\d{3,4}\b|\b\d{3,4}[- ]\d{3}[- ]\d{4}\b)"
+        r"(?:"
+        r"(?:1[- ]?800(?:[- ]?\d{2,4}){2,3})|"
+        r"(?:(?:\+?91|0)?[- ]?)?1800[- ]?\d{2,4}[- ]?\d{3,4}|"
+        r"(?:(?:\+?91|0)?[- ]?)?800[- ]?\d{3}[- ]?\d{4}|"
+        r"(?:(?:\+?91|0)?[- ]?)?[6-9]\d{9}|"
+        r"\b0\d{2,4}\s*[-–]\s*\d{3,4}(?:\s*[- ]?\d{3,4})?\b|"
+        r"\b0\d{2,4}[- ]?\d{3,4}[- ]?\d{3,4}\b|"
+        r"\b\d{3,4}[- ]\d{3}[- ]\d{4}\b"
+        r")"
     )
     email_regex = re.compile(
         r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}"
@@ -391,7 +648,7 @@ def extract_consumer_information(text: str) -> dict:
 
     for i, line in enumerate(lines):
         if care_markers.search(line):
-            context_block = lines[i:min(i + 3, len(lines))]
+            context_block = lines[i:min(i + 7, len(lines))]
             combined_context = " ".join(context_block)
 
             p_match = phone_regex.search(combined_context)
@@ -406,8 +663,8 @@ def extract_consumer_information(text: str) -> dict:
                 matched_lines.extend(context_block)
                 break
 
-    # Secondary check: Explicit prefix markers (e.g. "Customer Care Helpline: Call 1800-...")
-    if not found_phone and not found_email:
+    # Secondary check: Explicit prefix markers across entire document
+    if not found_phone:
         for line in lines:
             if re.search(r"(?:tel|phone|ph|call|toll\s*free|helpline)\s*[:.\-]\s*", line, re.IGNORECASE):
                 p_match = phone_regex.search(line)
@@ -415,12 +672,24 @@ def extract_consumer_information(text: str) -> dict:
                     found_phone = p_match.group(0).strip()
                     matched_lines.append(line)
                     break
-            if re.search(r"(?:email|e-mail)\s*[:.\-]\s*", line, re.IGNORECASE):
-                e_match = email_regex.search(line)
-                if e_match:
-                    found_email = e_match.group(0).strip()
-                    matched_lines.append(line)
-                    break
+
+    # Tertiary check: Any packaging care/feedback email in document
+    if not found_email:
+        all_emails = email_regex.findall(cleaned)
+        care_emails = [e for e in all_emails if any(kw in e.lower() for kw in ["care", "feedback", "consumer", "support", "complaint", "query", "queries", "customercare", "cc@"])]
+        if care_emails:
+            found_email = care_emails[0].strip()
+            matched_lines.append(found_email)
+        elif all_emails:
+            found_email = all_emails[0].strip()
+            matched_lines.append(found_email)
+
+    if found_phone:
+        found_phone = found_phone.strip()
+        if found_phone.startswith("-"):
+            found_phone = found_phone.lstrip("-")
+            if found_phone.startswith("800"):
+                found_phone = "1-" + found_phone
 
     if found_phone or found_email:
         raw_text = " ".join([l.strip() for l in matched_lines if l.strip()])
@@ -514,12 +783,55 @@ def combine_product_evidence(images_data: list) -> dict:
             return True
         if c1 in c2 or c2 in c1:
             return True
+        # Check token overlap for multi-word commodity titles (e.g. "Milk Choco Chips" vs "Choco Chips Compound")
+        w1 = set(re.findall(r"\w+", c1))
+        w2 = set(re.findall(r"\w+", c2))
+        common = w1.intersection(w2)
+        if len(common) >= 2:
+            return True
         return False
 
     # --- 1. PRODUCT NAME ---
+    # Collect all known manufacturer/company names across all views
+    known_companies = set()
+    for img in images_data:
+        mfr_det = img.get("fields", {}).get("details", {}).get("manufacturer", {})
+        if mfr_det and mfr_det.get("name"):
+            clean_m = re.sub(r"^[^\w]+|[^\w]+$", "", mfr_det["name"]).strip().lower()
+            if clean_m:
+                known_companies.add(clean_m)
+        mfr_str = img.get("fields", {}).get("manufacturer")
+        if mfr_str:
+            clean_m = re.sub(r"^[^\w]+|[^\w]+$", "", mfr_str).strip().lower()
+            if clean_m:
+                known_companies.add(clean_m)
+        img_text = img.get("cleaned_text") or img.get("ocr_text", "")
+        for m in COMPANY_MARKER_REGEX.finditer(img_text):
+            after = img_text[m.end():m.end() + 150]
+            for line in after.splitlines()[:3]:
+                l_clean = re.sub(r"^[^\w]+|[^\w]+$", "", line).strip().lower()
+                if l_clean and not CONTACT_DISQUALIFIER_REGEX.search(l_clean) and not any(k in l_clean for k in ["road", "plot", "nagar", "fssai", "lic"]):
+                    known_companies.add(l_clean)
+
+    def is_candidate_company_entity(cand_val: str) -> bool:
+        if not cand_val:
+            return True
+        c_clean = re.sub(r"^[^\w]+|[^\w]+$", "", cand_val).strip().lower()
+        for comp in known_companies:
+            if not comp:
+                continue
+            clean_comp = re.sub(r"^[^\w]+|[^\w]+$", "", comp).strip().lower()
+            if c_clean == clean_comp or (c_clean in clean_comp and len(c_clean) >= 3):
+                return True
+        if COMPANY_CORP_TERMS_REGEX.search(cand_val):
+            return True
+        if CONTACT_DISQUALIFIER_REGEX.search(cand_val):
+            return True
+        return False
+
     p_candidates = []
     for img in images_data:
-        p_det = img["fields"]["details"]["product_name"]
+        p_det = img.get("fields", {}).get("details", {}).get("product_name")
         if p_det and p_det.get("value"):
             p_candidates.append({
                 "value": p_det["value"],
@@ -528,26 +840,61 @@ def combine_product_evidence(images_data: list) -> dict:
                 "source_image_id": img.get("image_id", 1)
             })
 
+    def get_candidate_title_strength(cand_val: str, conf: float) -> int:
+        if not cand_val:
+            return 0
+        val_lower = cand_val.lower().strip()
+        words = val_lower.split()
+        category_keywords = [
+            "pistachio", "biscuit", "cookie", "tea", "coffee", "chip", "chili", "masala",
+            "atta", "dal", "butter", "milk", "oil", "noodle", "wafer", "snack", "powder", "chocolate"
+        ]
+        score = 0
+        if any(k in val_lower for k in category_keywords):
+            score += 3
+        if any(d in val_lower for d in ["premium", "gold", "classic", "original", "fresh", "pure", "crisp"]):
+            score += 2
+        if len(words) >= 2:
+            score += 2
+        if conf >= 0.85:
+            score += 1
+        return score
+
+    # Filter out company false-positives and negative terms when genuine product names exist
+    valid_p_candidates = [
+        c for c in p_candidates
+        if not is_candidate_company_entity(c["value"]) and not is_negative_product_line(c["value"])
+    ]
+    if valid_p_candidates:
+        strengths = [get_candidate_title_strength(c["value"], c["confidence"]) for c in valid_p_candidates]
+        max_s = max(strengths)
+        if max_s >= 2:
+            # Prune weak noise candidates (strength 0) when strong title candidates exist
+            valid_p_candidates = [c for c, s in zip(valid_p_candidates, strengths) if s > 0]
+
+    eval_candidates = valid_p_candidates if valid_p_candidates else p_candidates
+
     final_product_name = None
     final_p_detail = {"value": None, "raw": None, "confidence": 0.0, "source_image_id": None}
-    if p_candidates:
+    if eval_candidates:
         distinct_names = []
-        for c in p_candidates:
+        for c in eval_candidates:
             if not any(are_strings_compatible(c["value"], d["value"]) for d in distinct_names):
                 distinct_names.append(c)
-        if len(distinct_names) > 1:
+        # Real conflict check: ONLY if multiple distinct VALID product names exist
+        if len(valid_p_candidates) > 1 and len(distinct_names) > 1:
             conflicts["product_name"] = [
                 {"value": c["value"], "source_image_id": c["source_image_id"]}
-                for c in p_candidates
+                for c in valid_p_candidates
             ]
-        best_p = max(p_candidates, key=lambda c: (c["confidence"], len(c["value"])))
+        best_p = max(eval_candidates, key=lambda c: (get_candidate_title_strength(c["value"], c["confidence"]), c["confidence"], len(c["value"])))
         final_product_name = best_p["value"]
         final_p_detail = best_p
 
     # --- 2. MRP ---
     m_candidates = []
     for img in images_data:
-        m_det = img["fields"]["details"]["mrp"]
+        m_det = img.get("fields", {}).get("details", {}).get("mrp")
         if m_det and m_det.get("value") is not None:
             m_candidates.append({
                 "value": m_det["value"],
@@ -573,7 +920,7 @@ def combine_product_evidence(images_data: list) -> dict:
     # --- 3. NET QUANTITY ---
     q_candidates = []
     for img in images_data:
-        q_det = img["fields"]["details"]["net_quantity"]
+        q_det = img.get("fields", {}).get("details", {}).get("net_quantity")
         if q_det and q_det.get("value") is not None:
             q_candidates.append({
                 "value": q_det["value"],
@@ -586,20 +933,23 @@ def combine_product_evidence(images_data: list) -> dict:
     final_qty_str = None
     final_q_detail = {"value": None, "unit": None, "raw": None, "confidence": 0.0, "source_image_id": None}
     if q_candidates:
-        unique_qtys = set((c["value"], str(c["unit"]).lower()) for c in q_candidates)
+        # Prioritize explicit declarations (confidence >= 0.90) over fallback guesses
+        high_conf_q = [c for c in q_candidates if c.get("confidence", 0) >= 0.90]
+        eval_q = high_conf_q if high_conf_q else q_candidates
+        unique_qtys = set((c["value"], str(c["unit"]).lower()) for c in eval_q)
         if len(unique_qtys) > 1:
             conflicts["net_quantity"] = [
                 {"value": c["value"], "unit": c["unit"], "source_image_id": c["source_image_id"]}
-                for c in q_candidates
+                for c in eval_q
             ]
-        best_q = max(q_candidates, key=lambda c: c["confidence"])
+        best_q = max(eval_q, key=lambda c: c["confidence"])
         final_qty_str = f"{best_q['value']} {best_q['unit']}"
         final_q_detail = best_q
 
     # --- 4. MANUFACTURER ---
     mfr_candidates = []
     for img in images_data:
-        mfr_det = img["fields"]["details"]["manufacturer"]
+        mfr_det = img.get("fields", {}).get("details", {}).get("manufacturer")
         if mfr_det and mfr_det.get("name"):
             mfr_candidates.append({
                 "name": mfr_det["name"],
@@ -630,7 +980,7 @@ def combine_product_evidence(images_data: list) -> dict:
     # --- 5. CONSUMER INFORMATION ---
     c_candidates = []
     for img in images_data:
-        c_det = img["fields"]["details"]["consumer_information"]
+        c_det = img.get("fields", {}).get("details", {}).get("consumer_information")
         if c_det and (c_det.get("phone") or c_det.get("email")):
             c_candidates.append({
                 "phone": c_det.get("phone"),

@@ -1,16 +1,22 @@
 
-from typing import List, Optional
+import sys
 from pathlib import Path
-import shutil
+from typing import List, Optional
+
+BACKEND_DIR = Path(__file__).resolve().parent
+if str(BACKEND_DIR) not in sys.path:
+    sys.path.insert(0, str(BACKEND_DIR))
+
 import cv2
 import numpy as np
 from starlette.datastructures import UploadFile as StarletteUploadFile
 from fastapi import FastAPI, UploadFile, File, HTTPException, Request
+from fastapi.responses import RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from ocr.engine import extract_text, extract_text_with_confidence
-from extraction.extractor import extract_fields, combine_product_evidence
+from ocr.engine import extract_text_with_confidence
+from extraction.extractor import combine_product_evidence
 from rules.engine import evaluate_rules, calculate_compliance
 
 
@@ -42,7 +48,6 @@ if FRONTEND_DIR.exists():
 def root(request: Request):
     accept = request.headers.get("accept", "")
     if "text/html" in accept and FRONTEND_DIR.exists():
-        from fastapi.responses import RedirectResponse
         return RedirectResponse(url="/ui/")
     return {
         "message": "Legal Metrology Compliance API is running"
@@ -65,11 +70,13 @@ async def scan_product(
     upload_list: List[UploadFile] = []
     if files:
         if isinstance(files, list):
-            upload_list.extend([f for f in files if _is_valid_upload(f)])
-        elif _is_valid_upload(files):
+            for f in files:
+                if f is not None and _is_valid_upload(f):
+                    upload_list.append(f)
+        elif isinstance(files, (UploadFile, StarletteUploadFile)):
             upload_list.append(files)
 
-    if _is_valid_upload(file):
+    if file is not None and _is_valid_upload(file):
         upload_list.append(file)
 
     # 2. Validate file count (1 to 4 images)
@@ -141,7 +148,7 @@ async def scan_product(
 
     # Calculate mean OCR confidence across all scanned views
     avg_ocr_confidence = (
-        sum(img["confidence"] for img in images_meta) / len(images_meta)
+        sum(float(img["confidence"]) for img in images_meta) / len(images_meta)
         if images_meta else 0.0
     )
 
@@ -152,7 +159,7 @@ async def scan_product(
 
     # 7. Build and return consolidated response
     primary_filename = upload_list[0].filename if len(upload_list) == 1 else ", ".join(f.filename or "image" for f in upload_list)
-    combined_ocr_text = "\n\n--- NEXT IMAGE ---\n\n".join(img["cleaned_text"] for img in images_meta)
+    combined_ocr_text = "\n\n--- NEXT IMAGE ---\n\n".join(str(img["cleaned_text"]) for img in images_meta)
 
     return {
         "images": images_meta,

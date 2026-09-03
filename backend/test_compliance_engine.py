@@ -1,6 +1,7 @@
 import unittest
 from pathlib import Path
 import sys
+from typing import Dict, Optional
 
 BACKEND_DIR = Path(__file__).parent
 if str(BACKEND_DIR) not in sys.path:
@@ -13,7 +14,7 @@ from extraction.extractor import combine_product_evidence
 class TestComplianceRuleEngine(unittest.TestCase):
 
     def setUp(self):
-        self.complete_fields = {
+        self.complete_fields: Dict[str, Optional[str]] = {
             "product_name": "EVEREST CHANA MASALA",
             "manufacturer": "Everest Food Products Pvt Ltd",
             "net_quantity": "100 g",

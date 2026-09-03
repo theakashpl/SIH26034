@@ -205,5 +205,93 @@ class TestMultiImageScanning(unittest.TestCase):
         self.assertEqual(fields["consumer_care"], "1800-102-4567")
 
 
+    # --- TEST 13: Product title selected over company entity without conflict ---
+    def test_13_product_name_selected_over_company_name(self):
+        img1 = {
+            "image_id": 1,
+            "fields": {
+                "details": {
+                    "product_name": {"value": "CLICKCART", "confidence": 0.8},
+                    "manufacturer": {"name": "CLICKCART."}
+                }
+            }
+        }
+        img2 = {
+            "image_id": 2,
+            "fields": {
+                "details": {
+                    "product_name": {"value": "Avogro Premium Pistachios", "confidence": 0.85},
+                    "manufacturer": {"name": None}
+                }
+            }
+        }
+        combined = combine_product_evidence([img1, img2])
+        self.assertNotIn("product_name", combined["conflicts"])
+        self.assertEqual(combined["fields"]["product_name"], "Avogro Premium Pistachios")
+
+    # --- TEST 14: Real conflict preserved when two genuine different product titles appear ---
+    def test_14_genuine_conflict_preserved_for_different_products(self):
+        img1 = {
+            "image_id": 1,
+            "fields": {
+                "details": {
+                    "product_name": {"value": "Tata Tea Gold", "confidence": 0.85},
+                    "manufacturer": {"name": "Tata Consumer Products"}
+                }
+            }
+        }
+        img2 = {
+            "image_id": 2,
+            "fields": {
+                "details": {
+                    "product_name": {"value": "Lipton Green Tea", "confidence": 0.85},
+                    "manufacturer": {"name": "Hindustan Unilever"}
+                }
+            }
+        }
+        combined = combine_product_evidence([img1, img2])
+        self.assertIn("product_name", combined["conflicts"])
+        self.assertEqual(len(combined["conflicts"]["product_name"]), 2)
+
+    # --- TEST 15: Real two-image pistachio scan passes 100% compliant without conflict ---
+    def test_15_real_two_image_pistachio_scan(self):
+        sample_dir = Path(__file__).parent.parent / "sample_images"
+        back_p = sample_dir / "pistachio_back.jpeg"
+        if not back_p.exists():
+            back_p = sample_dir / "WhatsApp Image 2026-09-03 at 11.18.16 AM.jpeg"
+
+        front_p = sample_dir / "pistachio_front.jpeg"
+        if not front_p.exists():
+            front_p = sample_dir / "WhatsApp Image 2026-09-03 at 11.19.37 AM.jpeg"
+
+        if back_p.exists() and front_p.exists():
+            from ocr.engine import extract_text_with_confidence
+            from rules.engine import evaluate_rules, calculate_compliance
+
+            ocr_back = extract_text_with_confidence(str(back_p))
+            ocr_front = extract_text_with_confidence(str(front_p))
+
+            meta = [
+                {"image_id": 1, "filename": "back.jpg", "cleaned_text": ocr_back["cleaned_text"], "confidence": ocr_back["confidence"]},
+                {"image_id": 2, "filename": "front.jpg", "cleaned_text": ocr_front["cleaned_text"], "confidence": ocr_front["confidence"]}
+            ]
+            combined = combine_product_evidence(meta)
+            fields = combined["fields"]
+
+            self.assertNotIn("product_name", combined["conflicts"])
+            self.assertIn("PISTACHIOS", fields["product_name"].upper())
+            self.assertNotIn("CLICKCART", fields["product_name"].upper())
+            self.assertIn("CLICKCART", fields["manufacturer"].upper())
+            self.assertEqual(fields["net_quantity"], "250 g")
+            self.assertEqual(fields["mrp"], "₹499")
+            self.assertEqual(fields["consumer_care"], "+91 8302325471")
+
+            checks = evaluate_rules(fields, combined["conflicts"])
+            compliance = calculate_compliance(checks)
+            self.assertEqual(compliance["score"], 100)
+            self.assertEqual(compliance["status"], "COMPLIANT")
+
+
 if __name__ == "__main__":
     unittest.main()
+

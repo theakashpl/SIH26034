@@ -4,7 +4,7 @@ import numpy as np
 
 def validate_image(image_path: str) -> np.ndarray:
     """Validate image existence and loadability, returning BGR numpy array."""
-    image = cv2.imread(str(image_path))
+    image = cv2.imread(image_path)
     if image is None:
         raise ValueError(f"Could not read image: {image_path}")
     return image

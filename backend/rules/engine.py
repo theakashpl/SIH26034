@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+from typing import Optional
 
 
 RULES_PATH = Path(__file__).parent / "rules.json"
@@ -10,7 +11,7 @@ def load_rules() -> list:
         return json.load(file)
 
 
-def evaluate_rules(fields: dict, conflicts: dict = None) -> list:
+def evaluate_rules(fields: dict, conflicts: Optional[dict] = None) -> list:
     """
     Evaluates the 5 MVP Legal Metrology rules against extracted product fields.
     Handles missing fields, empty strings, and conflicting evidence.

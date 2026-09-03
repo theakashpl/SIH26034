@@ -113,7 +113,19 @@ class TestInformationExtraction(unittest.TestCase):
             ("Maximum Retail Price: Rs. 50", 50),
             ("Max Retail Price Rs. 56/-", 56),
             ("M.R.P. (inclusive of all taxes) ₹ 120.00", 120),
-            ("₹ 45.00 (incl. of all taxes)", 45)
+            ("₹ 45.00 (incl. of all taxes)", 45),
+            ("MRP: ₹30.00", 30),
+            ("MRP: ₹ 30.00", 30),
+            ("MRP: Rs. 30.00", 30),
+            ("MRP: Rs.30.00", 30),
+            ("MRP: 30.00", 30),
+            ("MRP 30.00", 30),
+            ("MRP: & 30.00", 30),
+            ("MRP: = 30.00", 30),
+            ("MRP: a 30.00", 30),
+            ("MRP: ee 30.00", 30),
+            ("MRP:\n\n¥ 30.00\n(Inclusive of all taxes)", 30),
+            ("MRP: ₹ 1,250.00", 1250),
         ]
         for snippet, expected_val in cases:
             res = extract_mrp(snippet)
@@ -159,7 +171,7 @@ class TestInformationExtraction(unittest.TestCase):
         self.assertEqual(res["email"], "help@example.com")
 
     def test_10_irrelevant_numbers_rejected(self):
-        # Must NOT confuse invoice, serial, barcode or nutrition numbers with MRP/Qty/Care
+        # Must NOT confuse invoice, serial, barcode, nutrition numbers, or unit sale price with MRP/Qty/Care
         text = """
         INVOICE # 9876543210
         Serial Number: 800-999-0000
@@ -175,6 +187,15 @@ class TestInformationExtraction(unittest.TestCase):
         self.assertIsNone(fields["mrp"])
         self.assertIsNone(fields["net_quantity"])
         self.assertIsNone(fields["consumer_care"])
+
+        # Specifically ensure unit sale price (e.g. ₹ 0.15 per g) is never extracted as MRP
+        usp_text = """
+        UNIT SALE PRICE:
+        ₹ 0.15 per g
+        BATCH NO: BN123
+        """
+        usp_fields = extract_fields(usp_text)
+        self.assertIsNone(usp_fields["mrp"])
 
     def test_11_real_sample_product1_ocr(self):
         img_path = Path(r"c:\SIH26034\sample_images\product1.jpg")
@@ -249,6 +270,67 @@ class TestInformationExtraction(unittest.TestCase):
             self.assertIsNone(fields["mrp"])
             self.assertIn("parle.biz", fields["consumer_care"])
 
+    def test_16_real_sample_sunrise_biscuits(self):
+        sample_dir = Path(__file__).parent.parent / "sample_images"
+        possible_paths = [
+            sample_dir / "sunrise_digestive_biscuits.jpeg",
+            sample_dir / "WhatsApp Image 2026-09-03 at 11.16.58 AM.jpeg"
+        ]
+        img_path = None
+        for p in possible_paths:
+            if p.exists():
+                img_path = p
+                break
+
+        if img_path:
+            ocr_res = extract_text_with_confidence(str(img_path))
+            fields = extract_fields(ocr_res["cleaned_text"])
+            self.assertIsNotNone(fields["product_name"])
+            self.assertIn("CHOCOLATE DIGESTIVE BISCUITS", fields["product_name"].upper())
+            self.assertIsNotNone(fields["manufacturer"])
+            self.assertIn("SUNRISE FOODS", fields["manufacturer"].upper())
+            self.assertEqual(fields["net_quantity"], "200 g")
+            self.assertIsNotNone(fields["details"]["mrp"]["value"])
+            self.assertEqual(fields["details"]["mrp"]["value"], 30)
+            self.assertIn(fields["mrp"], ["₹30", "₹30.00"])
+            self.assertIn("1800-123-5678", fields["consumer_care"])
+
+            from rules.engine import evaluate_rules, calculate_compliance
+            checks = evaluate_rules(fields)
+            compliance = calculate_compliance(checks)
+            self.assertEqual(compliance["score"], 100)
+            self.assertEqual(compliance["status"], "COMPLIANT")
+
+
+    def test_17_company_after_repacked_and_marketed_by_not_product_name(self):
+        text = """
+        Repacked & Marketed by
+        CLICKCART.
+        House No-226, Padmavati Nagar, Jodhpur
+        """
+        p_res = extract_product_name(text)
+        self.assertTrue(p_res["value"] is None or "CLICKCART" not in p_res["value"])
+
+    def test_18_company_after_manufactured_by_not_product_name(self):
+        text = """
+        Manufactured by:
+        ABC FOODS PVT. LTD.
+        Plot No. 45, Industrial Area, Pune 411001
+        """
+        p_res = extract_product_name(text)
+        self.assertTrue(p_res["value"] is None or "ABC FOODS" not in p_res["value"])
+
+    def test_19_mrp_inclusive_taxes_and_usp_rejection(self):
+        mrp_text = "MRP (Incl. of all taxes) : ₹499.00"
+        res = extract_mrp(mrp_text)
+        self.assertEqual(res["value"], 499)
+
+        usp_text = "USP: ₹2.00 per g"
+        res_usp = extract_mrp(usp_text)
+        self.assertIsNone(res_usp["value"])
+
 
 if __name__ == "__main__":
     unittest.main()
+
+
