@@ -13,6 +13,342 @@
         body {
             font-family: 'Inter', sans-serif;
         }
+
+        /* =========================================================
+           PRINT REPORT STYLES — @media print
+           Only #printReport is visible when printing.
+        ========================================================= */
+        #printReport { display: none; }
+
+        @media print {
+            /* --- Hide ALL normal UI --- */
+            body > header,
+            body > main,
+            #historyPanel,
+            #historyBackdrop,
+            .no-print {
+                display: none !important;
+            }
+
+            /* --- Show only the print report --- */
+            #printReport {
+                display: block !important;
+            }
+
+            /* --- Page setup --- */
+            @page {
+                size: A4 portrait;
+                margin: 18mm 16mm 18mm 16mm;
+            }
+
+            body {
+                background: #fff !important;
+                color: #000 !important;
+                font-family: 'Inter', Arial, sans-serif !important;
+                font-size: 10pt;
+                line-height: 1.5;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+
+            /* --- Report container --- */
+            #printReport {
+                width: 100%;
+                background: #fff;
+                color: #000;
+            }
+
+            /* --- Report header --- */
+            .pr-header {
+                text-align: center;
+                border-bottom: 3px solid #000;
+                padding-bottom: 10pt;
+                margin-bottom: 14pt;
+            }
+            .pr-org-code {
+                font-size: 8pt;
+                font-weight: 700;
+                letter-spacing: 0.15em;
+                text-transform: uppercase;
+                color: #374151;
+                margin-bottom: 2pt;
+            }
+            .pr-title {
+                font-size: 15pt;
+                font-weight: 800;
+                letter-spacing: -0.01em;
+                margin: 3pt 0 2pt;
+            }
+            .pr-subtitle {
+                font-size: 9pt;
+                color: #374151;
+                font-weight: 600;
+            }
+
+            /* --- Meta row (date, product) --- */
+            .pr-meta-row {
+                display: flex;
+                gap: 20pt;
+                flex-wrap: wrap;
+                margin-bottom: 12pt;
+                font-size: 9pt;
+            }
+            .pr-meta-item {
+                display: flex;
+                gap: 5pt;
+                align-items: baseline;
+            }
+            .pr-meta-label {
+                font-weight: 700;
+                text-transform: uppercase;
+                letter-spacing: 0.05em;
+                color: #6b7280;
+                font-size: 7.5pt;
+            }
+            .pr-meta-value {
+                font-weight: 600;
+                color: #111;
+            }
+
+            /* --- Status banner --- */
+            .pr-status-banner {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                border: 2pt solid #000;
+                padding: 8pt 12pt;
+                margin-bottom: 14pt;
+                page-break-inside: avoid;
+            }
+            .pr-status-banner.compliant {
+                border-color: #166534;
+                background: #f0fdf4;
+            }
+            .pr-status-banner.non-compliant {
+                border-color: #991b1b;
+                background: #fef2f2;
+            }
+            .pr-status-label {
+                font-size: 7pt;
+                font-weight: 800;
+                letter-spacing: 0.12em;
+                text-transform: uppercase;
+                color: #6b7280;
+                display: block;
+                margin-bottom: 2pt;
+            }
+            .pr-status-value {
+                font-size: 14pt;
+                font-weight: 800;
+                letter-spacing: 0.04em;
+            }
+            .pr-status-banner.compliant .pr-status-value { color: #166534; }
+            .pr-status-banner.non-compliant .pr-status-value { color: #991b1b; }
+            .pr-score-block {
+                text-align: right;
+            }
+            .pr-score-num {
+                font-size: 28pt;
+                font-weight: 800;
+                line-height: 1;
+                display: block;
+            }
+            .pr-status-banner.compliant .pr-score-num { color: #166534; }
+            .pr-status-banner.non-compliant .pr-score-num { color: #991b1b; }
+            .pr-score-lbl {
+                font-size: 7pt;
+                font-weight: 700;
+                text-transform: uppercase;
+                letter-spacing: 0.08em;
+                color: #6b7280;
+            }
+
+            /* --- Section heading --- */
+            .pr-section {
+                margin-bottom: 14pt;
+                page-break-inside: avoid;
+            }
+            .pr-section-title {
+                font-size: 7.5pt;
+                font-weight: 800;
+                text-transform: uppercase;
+                letter-spacing: 0.12em;
+                color: #374151;
+                border-bottom: 1pt solid #d1d5db;
+                padding-bottom: 3pt;
+                margin-bottom: 8pt;
+            }
+
+            /* --- Product details grid --- */
+            .pr-details-grid {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 6pt 16pt;
+                font-size: 9pt;
+            }
+            .pr-detail-item label {
+                font-size: 7pt;
+                font-weight: 700;
+                text-transform: uppercase;
+                letter-spacing: 0.06em;
+                color: #6b7280;
+                display: block;
+                margin-bottom: 1pt;
+            }
+            .pr-detail-item .pr-detail-val {
+                font-weight: 700;
+                color: #111;
+            }
+            .pr-detail-item .pr-not-detected {
+                color: #9ca3af;
+                font-style: italic;
+                font-weight: 500;
+            }
+
+            /* --- Compliance checks table --- */
+            .pr-checks-table {
+                width: 100%;
+                border-collapse: collapse;
+                font-size: 8.5pt;
+                page-break-inside: avoid;
+            }
+            .pr-checks-table th {
+                background: #1e3a5f;
+                color: #fff;
+                font-size: 7pt;
+                font-weight: 800;
+                text-transform: uppercase;
+                letter-spacing: 0.08em;
+                padding: 5pt 7pt;
+                text-align: left;
+                border: 1pt solid #1e3a5f;
+            }
+            .pr-checks-table td {
+                padding: 5pt 7pt;
+                border: 1pt solid #d1d5db;
+                vertical-align: top;
+            }
+            .pr-checks-table tr:nth-child(even) td {
+                background: #f9fafb;
+            }
+            .pr-pass {
+                font-weight: 800;
+                color: #166534;
+                font-size: 7.5pt;
+                letter-spacing: 0.04em;
+            }
+            .pr-fail {
+                font-weight: 800;
+                color: #991b1b;
+                font-size: 7.5pt;
+                letter-spacing: 0.04em;
+            }
+
+            /* --- Non-compliance details list --- */
+            .pr-nc-list {
+                margin: 0;
+                padding: 0;
+                list-style: none;
+            }
+            .pr-nc-item {
+                border-left: 3pt solid #dc2626;
+                padding: 6pt 10pt;
+                margin-bottom: 6pt;
+                background: #fff5f5;
+                page-break-inside: avoid;
+            }
+            .pr-nc-item-title {
+                font-weight: 800;
+                font-size: 9pt;
+                color: #991b1b;
+                margin-bottom: 2pt;
+            }
+            .pr-nc-item-detail {
+                font-size: 8pt;
+                color: #374151;
+            }
+
+            /* --- Compliance summary (all-pass) --- */
+            .pr-compliance-summary {
+                border-left: 3pt solid #166534;
+                padding: 6pt 10pt;
+                background: #f0fdf4;
+                font-size: 9pt;
+                font-weight: 600;
+                color: #166534;
+            }
+
+            /* --- Conflict block --- */
+            .pr-conflict-item {
+                border-left: 3pt solid #b45309;
+                padding: 5pt 10pt;
+                background: #fffbeb;
+                margin-bottom: 5pt;
+                font-size: 8.5pt;
+                page-break-inside: avoid;
+            }
+            .pr-conflict-field {
+                font-weight: 800;
+                color: #92400e;
+                margin-bottom: 2pt;
+            }
+
+            /* --- Source images --- */
+            .pr-source-list {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 6pt;
+                font-size: 8.5pt;
+            }
+            .pr-source-badge {
+                border: 1pt solid #9ca3af;
+                padding: 2pt 7pt;
+                border-radius: 3pt;
+                font-weight: 600;
+                color: #374151;
+                background: #f9fafb;
+            }
+
+            /* --- OCR info row --- */
+            .pr-ocr-row {
+                display: flex;
+                gap: 20pt;
+                font-size: 8.5pt;
+                color: #374151;
+                flex-wrap: wrap;
+                margin-bottom: 4pt;
+            }
+            .pr-ocr-note {
+                font-size: 7.5pt;
+                color: #6b7280;
+                font-style: italic;
+            }
+
+            /* --- Disclaimer --- */
+            .pr-disclaimer {
+                border: 1pt solid #9ca3af;
+                padding: 7pt 10pt;
+                background: #f9fafb;
+                font-size: 7.5pt;
+                color: #374151;
+                line-height: 1.5;
+                margin-top: 14pt;
+                page-break-inside: avoid;
+            }
+            .pr-disclaimer strong { color: #111; }
+
+            /* --- Footer --- */
+            .pr-footer {
+                margin-top: 12pt;
+                border-top: 1pt solid #d1d5db;
+                padding-top: 6pt;
+                display: flex;
+                justify-content: space-between;
+                font-size: 7pt;
+                color: #6b7280;
+                page-break-inside: avoid;
+            }
+        }
     </style>
 </head>
 <body class="bg-slate-100 min-h-screen font-sans text-slate-800">
@@ -153,9 +489,14 @@
                         <h2 class="text-lg font-semibold text-slate-900 flex items-center gap-2">
                             <i data-lucide="file-check-2" class="w-5 h-5 text-teal-700"></i> Audit Results Dashboard
                         </h2>
-                        <button type="button" id="resetAuditBtn" class="hidden text-xs font-semibold text-teal-700 hover:text-teal-800 flex items-center gap-1 cursor-pointer">
-                            <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i> New Scan
-                        </button>
+                        <div class="flex items-center gap-2">
+                            <button type="button" id="printReportBtn" class="hidden text-xs font-semibold text-slate-700 hover:text-teal-800 border border-slate-300 hover:border-teal-500 bg-white hover:bg-teal-50 flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition cursor-pointer" title="Print or Save as PDF">
+                                <i data-lucide="printer" class="w-3.5 h-3.5"></i> Print / Save PDF
+                            </button>
+                            <button type="button" id="resetAuditBtn" class="hidden text-xs font-semibold text-teal-700 hover:text-teal-800 flex items-center gap-1 cursor-pointer">
+                                <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i> New Scan
+                            </button>
+                        </div>
                     </div>
 
                     <!-- Initial State UI -->
@@ -261,6 +602,15 @@
 
         </div>
     </main>
+
+    <!-- =========================================================
+         PRINT-ONLY COMPLIANCE REPORT
+         Hidden from screen. Shown only via @media print.
+         Populated dynamically by printReport() in JS.
+    ========================================================= -->
+    <div id="printReport" aria-hidden="true">
+        <!-- Content injected by JS before window.print() -->
+    </div>
 
     <!-- ===== HISTORY PANEL (Slide-in from right) ===== -->
     <!-- Backdrop -->
@@ -574,8 +924,232 @@
             }
         });
 
+        // ---- Print Report State ----
+        let lastScanData = null;  // stores the most recent successful API response
+        const printReportBtn = document.getElementById('printReportBtn');
+
+        printReportBtn.addEventListener('click', function() {
+            if (!lastScanData) {
+                alert('No scan result available. Please analyze a product first.');
+                return;
+            }
+            buildAndPrintReport(lastScanData);
+        });
+
+        function buildAndPrintReport(data) {
+            const compliance = data.compliance || {};
+            const isCompliant = compliance.status === 'COMPLIANT';
+            const score = compliance.score || 0;
+            const checks = data.checks || [];
+            const fields = data.fields || {};
+            const conflicts = data.conflicts || {};
+            const images = data.images || [];
+            const ocrConfidence = data.ocr_confidence || 0;
+
+            const productName = fields.product_name || 'Not detected';
+            const mrp = fields.mrp || 'Not detected';
+            const netQty = fields.net_quantity || 'Not detected';
+            const manufacturer = fields.manufacturer || 'Not detected';
+            const consumerCare = fields.consumer_care || fields.email || 'Not detected';
+
+            const statusClass = isCompliant ? 'compliant' : 'non-compliant';
+            const statusText = isCompliant ? 'COMPLIANT' : 'NON-COMPLIANT';
+
+            const now = new Date();
+            const scanDate = now.toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' });
+            const scanTime = now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+            const failedChecks = checks.filter(c => c.status === 'FAIL');
+            const conflictKeys = Object.keys(conflicts);
+
+            // --- Build compliance checks table rows ---
+            const checksRowsHtml = checks.map((c, i) => {
+                const isPassed = c.status === 'PASS';
+                const valueCell = c.value ? escapeHtml(String(c.value)) : '<span style="color:#9ca3af;font-style:italic">Not detected</span>';
+                return `
+                    <tr>
+                        <td>${i + 1}. ${escapeHtml(c.name)} <span style="font-size:7pt;color:#9ca3af">(${escapeHtml(c.rule_id || '')})</span></td>
+                        <td><span class="${isPassed ? 'pr-pass' : 'pr-fail'}">${isPassed ? '✓ PASS' : '✗ FAIL'}</span></td>
+                        <td>${valueCell}</td>
+                        <td>${escapeHtml(c.reason || '—')}</td>
+                    </tr>`;
+            }).join('');
+
+            // --- Non-compliance details section ---
+            let ncSectionHtml = '';
+            if (failedChecks.length > 0) {
+                const ncItems = failedChecks.map((c, i) => `
+                    <li class="pr-nc-item">
+                        <div class="pr-nc-item-title">${i + 1}. ${escapeHtml(c.name)}</div>
+                        <div class="pr-nc-item-detail"><strong>Status:</strong> FAIL</div>
+                        <div class="pr-nc-item-detail"><strong>Reason:</strong> ${escapeHtml(c.reason || 'Required declaration was not detected.')}</div>
+                        ${c.value ? `<div class="pr-nc-item-detail"><strong>Detected Value:</strong> ${escapeHtml(String(c.value))}</div>` : ''}
+                    </li>`).join('');
+                ncSectionHtml = `
+                    <div class="pr-section">
+                        <div class="pr-section-title">&#9888; Non-Compliance Details</div>
+                        <ul class="pr-nc-list">${ncItems}</ul>
+                    </div>`;
+            } else {
+                ncSectionHtml = `
+                    <div class="pr-section">
+                        <div class="pr-section-title">Compliance Summary</div>
+                        <div class="pr-compliance-summary">&#10003; All required declarations checked by this MVP were detected on the product label.</div>
+                    </div>`;
+            }
+
+            // --- Conflicts section ---
+            let conflictsSectionHtml = '';
+            if (conflictKeys.length > 0) {
+                const conflictItems = conflictKeys.map(k => {
+                    const entries = conflicts[k] || [];
+                    const friendlyKey = k.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                    const entryLines = entries.map(e => {
+                        const valDisplay = e.unit ? `${e.value} ${e.unit}` : (e.name || e.phone || String(e.value));
+                        return `Image ${e.source_image_id}: <strong>${escapeHtml(String(valDisplay))}</strong>`;
+                    }).join(' &nbsp;|&nbsp; ');
+                    return `<div class="pr-conflict-item"><div class="pr-conflict-field">${escapeHtml(friendlyKey)}</div><div>${entryLines}</div></div>`;
+                }).join('');
+                conflictsSectionHtml = `
+                    <div class="pr-section">
+                        <div class="pr-section-title">&#9888; Data Conflicts (Multi-Image Inconsistencies)</div>
+                        ${conflictItems}
+                    </div>`;
+            }
+
+            // --- Source images section ---
+            let sourceHtml = '';
+            if (images.length > 0) {
+                const badges = images.map(img =>
+                    `<span class="pr-source-badge">Image ${img.image_id}: ${escapeHtml(img.filename)}</span>`
+                ).join('');
+                sourceHtml = `
+                    <div class="pr-section">
+                        <div class="pr-section-title">Source Images Scanned</div>
+                        <div class="pr-source-list">${badges}</div>
+                    </div>`;
+            }
+
+            // --- PSM info ---
+            const psmSelected = (images.length > 0 && images[0].psm_selected != null)
+                ? images[0].psm_selected
+                : 'N/A';
+
+            // --- Assemble full report HTML ---
+            const reportHtml = `
+                <div class="pr-header">
+                    <div class="pr-org-code">SIH26034</div>
+                    <div class="pr-title">PACKAGED COMMODITY COMPLIANCE AUDIT REPORT</div>
+                    <div class="pr-subtitle">Legal Metrology (Packaged Commodities) Rules, 2011 &mdash; Rule 6 Mandatory Declarations</div>
+                </div>
+
+                <div class="pr-meta-row">
+                    <div class="pr-meta-item"><span class="pr-meta-label">Report Date:</span> <span class="pr-meta-value">${escapeHtml(scanDate)}</span></div>
+                    <div class="pr-meta-item"><span class="pr-meta-label">Time:</span> <span class="pr-meta-value">${escapeHtml(scanTime)}</span></div>
+                    <div class="pr-meta-item"><span class="pr-meta-label">Product:</span> <span class="pr-meta-value">${escapeHtml(productName)}</span></div>
+                    <div class="pr-meta-item"><span class="pr-meta-label">Images Scanned:</span> <span class="pr-meta-value">${images.length || 1}</span></div>
+                </div>
+
+                <div class="pr-status-banner ${statusClass}">
+                    <div>
+                        <span class="pr-status-label">Overall Compliance Status</span>
+                        <span class="pr-status-value">${statusText}</span>
+                        <div style="font-size:8pt;margin-top:4pt;color:#374151;font-weight:600">${escapeHtml(compliance.summary || '')}</div>
+                    </div>
+                    <div class="pr-score-block">
+                        <span class="pr-score-num">${score}%</span>
+                        <span class="pr-score-lbl">Compliance Score</span>
+                    </div>
+                </div>
+
+                <div class="pr-section">
+                    <div class="pr-section-title">Detected Product Information</div>
+                    <div class="pr-details-grid">
+                        <div class="pr-detail-item">
+                            <label>Product Name</label>
+                            ${productName !== 'Not detected'
+                                ? `<span class="pr-detail-val">${escapeHtml(productName)}</span>`
+                                : `<span class="pr-not-detected">Not detected</span>`}
+                        </div>
+                        <div class="pr-detail-item">
+                            <label>MRP (Maximum Retail Price)</label>
+                            ${mrp !== 'Not detected'
+                                ? `<span class="pr-detail-val">${escapeHtml(mrp)}</span>`
+                                : `<span class="pr-not-detected">Not detected</span>`}
+                        </div>
+                        <div class="pr-detail-item">
+                            <label>Net Quantity / Weight</label>
+                            ${netQty !== 'Not detected'
+                                ? `<span class="pr-detail-val">${escapeHtml(netQty)}</span>`
+                                : `<span class="pr-not-detected">Not detected</span>`}
+                        </div>
+                        <div class="pr-detail-item">
+                            <label>Manufacturer / Packer</label>
+                            ${manufacturer !== 'Not detected'
+                                ? `<span class="pr-detail-val">${escapeHtml(manufacturer)}</span>`
+                                : `<span class="pr-not-detected">Not detected</span>`}
+                        </div>
+                        <div class="pr-detail-item" style="grid-column: 1 / -1">
+                            <label>Consumer Care Information</label>
+                            ${consumerCare !== 'Not detected'
+                                ? `<span class="pr-detail-val">${escapeHtml(consumerCare)}</span>`
+                                : `<span class="pr-not-detected">Not detected</span>`}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="pr-section">
+                    <div class="pr-section-title">Mandatory Declaration Checks (5 Core Requirements &mdash; Rule 6)</div>
+                    <table class="pr-checks-table">
+                        <thead>
+                            <tr>
+                                <th style="width:32%">Requirement</th>
+                                <th style="width:10%">Status</th>
+                                <th style="width:24%">Detected Value</th>
+                                <th>Remarks</th>
+                            </tr>
+                        </thead>
+                        <tbody>${checksRowsHtml}</tbody>
+                    </table>
+                </div>
+
+                ${ncSectionHtml}
+
+                ${conflictsSectionHtml}
+
+                ${sourceHtml}
+
+                <div class="pr-section">
+                    <div class="pr-section-title">OCR Information</div>
+                    <div class="pr-ocr-row">
+                        <span><strong>OCR Confidence (Average):</strong> ${ocrConfidence}%</span>
+                        <span><strong>PSM Mode:</strong> ${escapeHtml(String(psmSelected))}</span>
+                    </div>
+                    <div class="pr-ocr-note">Results are generated from OCR and rule-based information extraction. Accuracy depends on image quality and label clarity.</div>
+                </div>
+
+                <div class="pr-disclaimer">
+                    <strong>Assessment Scope &amp; Disclaimer:</strong> This report reflects the declarations checked by the SIH26034 MVP.
+                    It should not be interpreted as a determination of complete legal compliance with every provision of the
+                    Legal Metrology (Packaged Commodities) Rules, 2011. Further review by a qualified legal metrology officer may be required.
+                </div>
+
+                <div class="pr-footer">
+                    <span>SIH26034 &mdash; Packaged Commodity Compliance System</span>
+                    <span>Generated by the SIH26034 Compliance Audit System &bull; ${escapeHtml(scanDate)}</span>
+                </div>
+            `;
+
+            document.getElementById('printReport').innerHTML = reportHtml;
+            window.print();
+        }
+
         // Render Audit Results
         function renderAuditResults(data) {
+            // Store scan data for printing
+            lastScanData = data;
+            printReportBtn.classList.remove('hidden');
+
             initialState.classList.add('hidden');
             resultsContainer.classList.remove('hidden');
             resetAuditBtn.classList.remove('hidden');
@@ -704,6 +1278,8 @@
             initialState.classList.remove('hidden');
             resultsContainer.classList.add('hidden');
             resetAuditBtn.classList.add('hidden');
+            printReportBtn.classList.add('hidden');
+            lastScanData = null;
             selectedFiles = [];
             capturedBlob = null;
             fileInput.value = '';

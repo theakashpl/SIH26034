@@ -378,15 +378,43 @@ def extract_mrp(text: str) -> dict:
     for match in mrp_label_regex.finditer(cleaned):
         after_text = cleaned[match.end():match.end() + 250]
 
-        # Stop candidate block at major unrelated section boundary
+        # Stop candidate block at major unrelated section boundary.
+        # Lines matching a stop section are treated as hard boundaries.
+        # Lines matching a skip section are excluded from the block but scanning continues
+        # (i.e. we look PAST them for the actual numeric value).
+        stop_sections = [
+            "ingredients", "nutrition", "nutritional", "consumer care", "customer care",
+            "care cell", "feedback", "complaint", "manufactured by", "packed by", "marketed by",
+            "directions", "instructions", "storage", "keep in", "store in",
+        ]
+        # Lines to SKIP (omit from block text) but not stop scanning — these are contextual
+        # headers between the MRP label and its numeric value in tabular/column layouts.
+        skip_terms = [
+            "batch number", "batch no", "b.no", "b. no",
+            "date of mfg", "date of manufacture", "date of manufacturing",
+            "date of exp", "date of expiry", "date of expiration", "best before", "use by",
+            "unit sale price", "usp", "unit price", "sale price",
+            "pkd", "packed on",
+        ]
+
         lines = after_text.splitlines()
         candidate_block_lines = []
+        non_empty_count = 0
         for i, line in enumerate(lines):
             l_lower = line.lower().strip()
+            if not l_lower:
+                candidate_block_lines.append(line)
+                continue
+            # Hard stop at unrelated section boundary
             if i > 0 and any(s in l_lower for s in stop_sections):
                 break
+            # Skip (but continue past) tabular header lines that sit between label and value
+            if i > 0 and any(s in l_lower for s in skip_terms):
+                continue
             candidate_block_lines.append(line)
-            if len([l for l in candidate_block_lines if l.strip()]) >= 4:
+            non_empty_count += 1
+            # Allow up to 10 non-empty lines; tabular MRP blocks can be 5-8 lines deep
+            if non_empty_count >= 10:
                 break
 
         block_text = " ".join(candidate_block_lines)
@@ -421,11 +449,18 @@ def extract_mrp(text: str) -> dict:
                 continue
 
             # If there is no explicit currency symbol, require the number to be
-            # very close to the MRP label (within 30 chars) to avoid false positives
-            # from nearby quantity/batch/nutritional numbers.
+            # within a reasonable distance to avoid false positives from batch/nutritional numbers.
+            # Relax the distance when the block contains a strong MRP-context phrase
+            # (e.g. "incl. of all taxes", "inclusive of taxes") — in those cases the entire
+            # block is clearly a price declaration even if the number is further along.
             has_explicit_curr = bool(re.search(r"[₹%]|Rs\.?|INR", val_match.group(0), re.IGNORECASE))
-            if not has_explicit_curr and val_match.start() > 30:
-                # Too far from MRP header without a currency symbol -> likely unrelated text
+            block_has_tax_context = bool(re.search(
+                r"\bincl\.?\b|\binclusive\b|\ball\s+taxes\b|\bincluding\s+tax",
+                block_lower, re.IGNORECASE
+            ))
+            distance_limit = 150 if block_has_tax_context else 30
+            if not has_explicit_curr and val_match.start() > distance_limit:
+                # Too far from MRP header without a currency symbol or tax-context phrase
                 continue
 
             val_str = val_match.group(1).replace(",", "")
