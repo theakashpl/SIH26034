@@ -1,202 +1,653 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Packaged Commodity Compliance Scanner | Legal Metrology Rules, 2011</title>
-  <meta name="description" content="Official Legal Metrology compliance scanner for packaged commodities. Upload 1 to 4 product views to verify mandatory declarations, detect conflicts, and calculate compliance scores.">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Legal Metrology Compliance Checker - Live Scanner</title>
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+    </style>
 </head>
-<body>
+<body class="bg-slate-100 min-h-screen font-sans text-slate-800">
 
-  <!-- Official Header -->
-  <header class="app-header">
-    <div class="header-container">
-      <div class="header-emblem">
-        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M12 2L3 7v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-9-5z"/>
-          <path d="M9 12l2 2 4-4"/>
-        </svg>
-      </div>
-      <div class="header-titles">
-        <span class="gov-subtext">LEGAL METROLOGY (PACKAGED COMMODITIES) RULES, 2011</span>
-        <h1 class="gov-title">Packaged Commodity Compliance Scanner</h1>
-      </div>
-      <div class="header-badge">
-        <span class="badge-tag">SIH26034 MVP</span>
-      </div>
-    </div>
-  </header>
-
-  <!-- Main Application Container -->
-  <main class="app-container">
-
-    <!-- Upload & Scan Section (Step 1 & 2) -->
-    <section id="scanSection" class="card-section">
-      <div class="section-intro">
-        <h2>Product Label & Package Scanner</h2>
-        <p class="section-desc">
-          Upload <strong>1 to 4 images</strong> representing different views (front, back, sides) of the <strong>same product</strong>. The system will perform independent OCR, combine declarations, verify the 5 mandatory Legal Metrology rules, and highlight any discrepancies.
-        </p>
-      </div>
-
-      <!-- Notification / Error Banner -->
-      <div id="alertBanner" class="alert-banner hidden" role="alert">
-        <span id="alertIcon" class="alert-icon">⚠️</span>
-        <span id="alertMessage" class="alert-text"></span>
-        <button id="alertCloseBtn" class="alert-close" aria-label="Dismiss error">&times;</button>
-      </div>
-
-      <!-- Drag & Drop Zone -->
-      <div id="dropZone" class="drop-zone" tabindex="0">
-        <div class="drop-zone-icon">
-          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-            <polyline points="17 8 12 3 7 8"/>
-            <line x1="12" y1="3" x2="12" y2="15"/>
-          </svg>
-        </div>
-        <p class="drop-zone-primary">Drag & drop product images here, or <span class="browse-link">browse files</span></p>
-        <p class="drop-zone-secondary">Supported: JPG, JPEG, PNG, WEBP, BMP, TIFF &bull; <strong>1 to 4 images per product</strong></p>
-        <input type="file" id="fileInput" multiple accept=".jpg,.jpeg,.png,.webp,.bmp,.tiff" class="file-input-hidden">
-      </div>
-
-      <!-- Preview Grid -->
-      <div id="previewArea" class="preview-area hidden">
-        <div class="preview-header">
-          <span class="preview-title">Selected Views</span>
-          <span id="imageCounter" class="image-counter">0 of 4 images</span>
-        </div>
-        <div id="previewGrid" class="preview-grid">
-          <!-- Populated by JS -->
-        </div>
-      </div>
-
-      <!-- Scan Actions -->
-      <div class="action-bar">
-        <button id="scanBtn" class="btn btn-primary" disabled>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
-          </svg>
-          Scan Product Compliance
-        </button>
-        <button id="clearBtn" class="btn btn-secondary hidden">
-          Clear All
-        </button>
-      </div>
-
-      <!-- Loading State -->
-      <div id="loadingOverlay" class="loading-overlay hidden">
-        <div class="loading-spinner"></div>
-        <h3 id="loadingStatusText" class="loading-title">Analyzing product...</h3>
-        <p id="loadingSubtext" class="loading-sub">Running OCR on uploaded views and extracting mandatory declarations</p>
-      </div>
-    </section>
-
-    <!-- Results Section (Step 3) -->
-    <section id="resultSection" class="result-section hidden">
-      
-      <!-- Top Compliance Overview Card -->
-      <div id="complianceOverviewCard" class="compliance-card">
-        <div class="compliance-header">
-          <div>
-            <span class="meta-label">LEGAL METROLOGY COMPLIANCE REPORT</span>
-            <h2 id="reportProductName" class="product-title-display">Product Name</h2>
-          </div>
-          <div class="score-badge-container">
-            <div id="scoreCircle" class="score-circle">
-              <span id="scoreValue" class="score-num">--%</span>
-              <span class="score-label">COMPLIANCE</span>
+    <!-- Header -->
+    <header class="bg-white border-b border-slate-200 py-4 px-6 shadow-sm sticky top-0 z-30">
+        <div class="max-w-7xl mx-auto flex justify-between items-center">
+            <div class="flex items-center space-x-3">
+                <div class="bg-teal-700 text-white p-2.5 rounded-xl shadow-sm">
+                    <i data-lucide="shield-check" class="w-6 h-6"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold tracking-tight text-slate-900 leading-none">LMCC</h1>
+                    <span class="text-[11px] font-medium text-slate-500 tracking-wide uppercase">Legal Metrology Compliance Checker</span>
+                </div>
             </div>
-          </div>
+            <div class="flex items-center gap-2">
+                <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-teal-50 text-teal-700 border border-teal-200">
+                    <span class="w-2 h-2 rounded-full bg-teal-500 animate-pulse"></span>
+                    PCR Rules 2011 Engine
+                </span>
+            </div>
         </div>
+    </header>
 
-        <div class="status-summary-bar">
-          <div id="statusTag" class="status-tag">
-            <span id="statusIcon">✓</span>
-            <span id="statusText">COMPLIANT</span>
-          </div>
-          <p id="summaryText" class="summary-statement">
-            All required declarations checked by this MVP were detected.
-          </p>
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto p-6 md:p-8">
+        <div class="grid grid-cols-1 lg:grid-cols-5 gap-8">
+            
+            <!-- LEFT COLUMN: Input & Scanner Controls -->
+            <div class="lg:col-span-2 space-y-6">
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-6">
+                    
+                    <!-- Mode Switcher Tabs -->
+                    <div class="flex bg-slate-100 p-1 rounded-xl">
+                        <button id="tabUpload" class="flex-1 py-2 text-xs font-semibold rounded-lg bg-white text-slate-900 shadow-sm transition cursor-pointer flex items-center justify-center gap-1.5">
+                            <i data-lucide="upload-cloud" class="w-3.5 h-3.5 text-teal-700"></i> Upload Images
+                        </button>
+                        <button id="tabCamera" class="flex-1 py-2 text-xs font-semibold rounded-lg text-slate-500 hover:text-slate-900 transition cursor-pointer flex items-center justify-center gap-1.5">
+                            <i data-lucide="camera" class="w-3.5 h-3.5"></i> Live Camera
+                        </button>
+                    </div>
+
+                    <!-- TAB 1: Upload View -->
+                    <div id="viewUpload">
+                        <div class="flex justify-between items-center mb-3">
+                            <h2 class="text-base font-semibold text-slate-900 flex items-center gap-2">
+                                <i data-lucide="upload-cloud" class="w-5 h-5 text-teal-700"></i> Upload Label Images
+                            </h2>
+                            <span id="selectedCountBadge" class="text-xs font-medium text-slate-500 hidden">0/4 images</span>
+                        </div>
+                        
+                        <label class="block border-2 border-dashed border-slate-300 rounded-xl p-6 text-center hover:border-teal-600 hover:bg-teal-50/40 transition cursor-pointer relative group">
+                            <input type="file" id="fileInput" multiple accept="image/png, image/jpeg, image/webp, image/bmp" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10">
+                            
+                            <div id="uploadPrompt" class="space-y-3">
+                                <div class="w-12 h-12 bg-teal-50 text-teal-700 rounded-full flex items-center justify-center mx-auto group-hover:scale-110 transition-transform">
+                                    <i data-lucide="image-plus" class="w-6 h-6"></i>
+                                </div>
+                                <p class="text-sm font-medium text-slate-700">Click or drag label image(s) here</p>
+                                <p class="text-xs text-slate-400">Upload 1 to 4 views (front, back, sides) &bull; PNG, JPG, WEBP</p>
+                            </div>
+
+                            <!-- Preview Grid -->
+                            <div id="previewContainer" class="hidden space-y-3">
+                                <div id="previewGrid" class="grid grid-cols-2 gap-2 max-h-56 overflow-y-auto p-1"></div>
+                                <p id="fileName" class="text-xs text-slate-500 font-medium truncate px-2"></p>
+                                <button type="button" id="changeFilesBtn" class="text-xs text-teal-700 hover:text-teal-800 font-semibold underline cursor-pointer relative z-20">
+                                    Change / Add images
+                                </button>
+                            </div>
+                        </label>
+                    </div>
+
+                    <!-- TAB 2: Live Camera View -->
+                    <div id="viewCamera" class="hidden space-y-4">
+                        <h2 class="text-base font-semibold text-slate-900 flex items-center gap-2">
+                            <i data-lucide="camera" class="w-5 h-5 text-teal-700"></i> Live Camera Scanner
+                        </h2>
+                        <p class="text-xs text-slate-500">Position the product label inside the camera frame.</p>
+                        
+                        <!-- Video Feed Container -->
+                        <div class="relative rounded-xl overflow-hidden bg-black aspect-[4/3] flex items-center justify-center border border-slate-200 shadow-inner">
+                            <video id="cameraFeed" autoplay playsinline class="w-full h-full object-cover"></video>
+                            <canvas id="snapshotCanvas" class="hidden"></canvas>
+                            
+                            <!-- Captured Snapshot Preview overlay -->
+                            <img id="capturedPreview" src="" alt="Captured Label" class="hidden absolute inset-0 w-full h-full object-cover">
+                            
+                            <div id="cameraStandbyPrompt" class="text-slate-400 text-xs flex flex-col items-center gap-2">
+                                <i data-lucide="video" class="w-8 h-8 opacity-40"></i>
+                                <span>Click "Start Camera" to begin</span>
+                            </div>
+                        </div>
+
+                        <div class="flex gap-2">
+                            <button type="button" id="startCameraBtn" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold py-2.5 px-3 rounded-xl transition cursor-pointer">Start Camera</button>
+                            <button type="button" id="captureBtn" disabled class="flex-1 bg-teal-700 hover:bg-teal-800 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed text-white text-xs font-semibold py-2.5 px-3 rounded-xl transition cursor-pointer">Capture Photo</button>
+                            <button type="button" id="retakeBtn" class="hidden flex-1 bg-amber-100 hover:bg-amber-200 text-amber-800 text-xs font-semibold py-2.5 px-3 rounded-xl transition cursor-pointer">Retake</button>
+                        </div>
+                    </div>
+
+                    <!-- Scanner Model Selector UI -->
+                    <div>
+                        <label for="scannerModel" class="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2 flex items-center gap-1.5">
+                            <i data-lucide="cpu" class="w-4 h-4 text-teal-700"></i> AI Scanner & Extraction Model
+                        </label>
+                        <select id="scannerModel" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2.5 text-sm text-slate-700 focus:ring-2 focus:ring-teal-600 focus:outline-none cursor-pointer">
+                            <option value="standard-ocr">Standard OCR + Rule Parser (Rule 6 Legal Metrology)</option>
+                            <option value="vision-pro">Vision Pro + Multi-View Evidence (Recommended)</option>
+                            <option value="fast-scan">Fast-Scan Lightweight AI (Speed Optimized)</option>
+                        </select>
+                    </div>
+
+                    <!-- Notification / Error Banner -->
+                    <div id="alertBanner" class="hidden p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-medium flex items-center justify-between">
+                        <span id="alertMessage"></span>
+                        <button type="button" id="alertCloseBtn" class="text-rose-500 hover:text-rose-800 font-bold ml-2">&times;</button>
+                    </div>
+
+                    <!-- Trigger Button UI -->
+                    <button id="analyzeBtn" disabled class="w-full bg-teal-700 hover:bg-teal-800 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed text-white font-semibold py-3 px-4 rounded-xl transition-all flex items-center justify-center gap-2 shadow-sm cursor-pointer">
+                        <span id="analyzeBtnSpinner" class="hidden w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                        <i id="analyzeBtnIcon" data-lucide="scan-line" class="w-5 h-5"></i>
+                        <span id="analyzeBtnText">Analyze Label Compliance</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- RIGHT COLUMN: Results Dashboard UI Design -->
+            <div class="lg:col-span-3">
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 min-h-[500px] flex flex-col relative overflow-hidden">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-lg font-semibold text-slate-900 flex items-center gap-2">
+                            <i data-lucide="file-check-2" class="w-5 h-5 text-teal-700"></i> Audit Results Dashboard
+                        </h2>
+                        <button type="button" id="resetAuditBtn" class="hidden text-xs font-semibold text-teal-700 hover:text-teal-800 flex items-center gap-1 cursor-pointer">
+                            <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i> New Scan
+                        </button>
+                    </div>
+
+                    <!-- Initial State UI -->
+                    <div id="initialState" class="flex-1 flex flex-col items-center justify-center text-center px-4 py-12">
+                        <div class="w-16 h-16 bg-slate-100 text-slate-400 rounded-full flex items-center justify-center mb-4">
+                            <i data-lucide="search-x" class="w-8 h-8"></i>
+                        </div>
+                        <h3 class="text-base font-semibold text-slate-700">No label analyzed yet</h3>
+                        <p class="text-sm text-slate-500 mt-2 max-w-sm">Upload an image or use the live camera scanner to check compliance against Legal Metrology Rules, 2011.</p>
+                    </div>
+
+                    <!-- Results Layout UI -->
+                    <div id="resultsContainer" class="hidden flex-1 flex flex-col space-y-6">
+                        
+                        <!-- Top Compliance Overview Card -->
+                        <div id="complianceOverviewBanner" class="p-5 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4 border shadow-xs">
+                            <div class="flex items-start gap-4">
+                                <div id="statusBadgeIconContainer" class="p-3 rounded-xl flex-shrink-0 mt-0.5 text-white">
+                                    <i id="statusIcon" data-lucide="check-circle" class="w-6 h-6"></i>
+                                </div>
+                                <div>
+                                    <div class="flex items-center gap-2">
+                                        <span id="statusBadgeTag" class="text-xs font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-md"></span>
+                                        <span id="reportProductName" class="text-sm font-semibold text-slate-700 truncate max-w-xs"></span>
+                                    </div>
+                                    <h4 id="statusHeading" class="font-bold text-lg mt-1 text-slate-900"></h4>
+                                    <p id="summaryText" class="text-sm mt-1 text-slate-600 leading-relaxed"></p>
+                                </div>
+                            </div>
+                            
+                            <!-- Compliance Score Circle -->
+                            <div class="flex items-center gap-4 border-t md:border-t-0 md:border-l border-slate-200 pt-3 md:pt-0 md:pl-6">
+                                <div class="text-center">
+                                    <span id="scoreValue" class="text-3xl font-extrabold block text-slate-900 leading-none">--%</span>
+                                    <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 mt-1 block">Compliance</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Scanned Meta Row -->
+                        <div class="grid grid-cols-3 gap-3 bg-slate-50 border border-slate-200 rounded-xl p-3 text-center">
+                            <div>
+                                <span class="text-[11px] font-semibold text-slate-400 block uppercase">Views Scanned</span>
+                                <span id="metaImageCount" class="text-sm font-bold text-slate-800">1</span>
+                            </div>
+                            <div>
+                                <span class="text-[11px] font-semibold text-slate-400 block uppercase">Avg OCR Confidence</span>
+                                <span id="metaOcrConfidence" class="text-sm font-bold text-slate-800">--%</span>
+                            </div>
+                            <div>
+                                <span class="text-[11px] font-semibold text-slate-400 block uppercase">Mandatory Rules</span>
+                                <span class="text-sm font-bold text-slate-800">5 Checked</span>
+                            </div>
+                        </div>
+
+                        <!-- Missing Mandatory Fields Alert -->
+                        <div id="missingFieldsCard" class="hidden bg-rose-50 border border-rose-200 rounded-xl p-4">
+                            <h4 class="text-xs font-bold uppercase tracking-wider text-rose-800 flex items-center gap-1.5 mb-2">
+                                <i data-lucide="siren" class="w-4 h-4"></i> Missing Mandatory Fields
+                            </h4>
+                            <ul id="missingFieldsList" class="list-disc list-inside text-sm text-rose-700 space-y-1 font-medium"></ul>
+                        </div>
+
+                        <!-- Multi-View Conflicts Alert -->
+                        <div id="conflictsCard" class="hidden bg-amber-50 border border-amber-200 rounded-xl p-4">
+                            <h4 class="text-xs font-bold uppercase tracking-wider text-amber-800 flex items-center gap-1.5 mb-2">
+                                <i data-lucide="alert-triangle" class="w-4 h-4"></i> Multi-View Inconsistencies Detected
+                            </h4>
+                            <p class="text-xs text-amber-700 mb-2">Discrepancies found across different images of this package:</p>
+                            <ul id="conflictsList" class="list-disc list-inside text-sm text-amber-800 space-y-1 font-medium"></ul>
+                        </div>
+
+                        <!-- The Five Mandatory Checks Grid -->
+                        <div>
+                            <div class="flex justify-between items-center mb-3">
+                                <h3 class="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                                    <i data-lucide="list-checks" class="w-4 h-4 text-teal-700"></i> Mandatory Declarations (5 Core Checks)
+                                </h3>
+                                <span class="text-[11px] text-slate-400 font-medium">Rule 6, Legal Metrology, 2011</span>
+                            </div>
+                            
+                            <div id="rulesList" class="space-y-2.5">
+                                <!-- Populated dynamically by JS -->
+                            </div>
+                        </div>
+
+                        <!-- Expandable Raw Evidence -->
+                        <details class="border border-slate-200 rounded-xl bg-slate-50 overflow-hidden text-xs">
+                            <summary class="p-3 font-semibold text-slate-700 flex items-center justify-between cursor-pointer hover:bg-slate-100 transition">
+                                <span class="flex items-center gap-1.5">
+                                    <i data-lucide="file-text" class="w-3.5 h-3.5 text-slate-500"></i> Technical Evidence & Cleaned OCR Text
+                                </span>
+                                <span class="text-slate-400">Click to expand</span>
+                            </summary>
+                            <div class="p-3 border-t border-slate-200 bg-white">
+                                <pre id="rawOcrContent" class="font-mono text-[11px] text-slate-700 whitespace-pre-wrap max-h-48 overflow-y-auto p-2 bg-slate-50 rounded-lg"></pre>
+                            </div>
+                        </details>
+
+                    </div>
+                </div>
+            </div>
+
         </div>
+    </main>
 
-        <div class="scanned-meta-row">
-          <div class="meta-item">
-            <span class="meta-item-label">Images Scanned:</span>
-            <span id="metaImageCount" class="meta-item-val">0</span>
-          </div>
-          <div class="meta-item">
-            <span class="meta-item-label">Average OCR Confidence:</span>
-            <span id="metaOcrConfidence" class="meta-item-val">--%</span>
-          </div>
-          <div class="meta-item">
-            <span class="meta-item-label">Mandatory Rules:</span>
-            <span id="metaRulesCount" class="meta-item-val">5 Checked</span>
-          </div>
-        </div>
-      </div>
+    <!-- Interactivity Logic -->
+    <script>
+        // Initialize Lucide icons
+        lucide.createIcons();
 
-      <!-- Conflicts Alert (if any detected across images) -->
-      <div id="conflictAlertBox" class="conflict-alert-box hidden">
-        <div class="conflict-header">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-            <line x1="12" y1="9" x2="12" y2="13"/>
-            <line x1="12" y1="17" x2="12.01" y2="17"/>
-          </svg>
-          <h3>Discrepancy / Conflict Detected Across Views</h3>
-        </div>
-        <p class="conflict-desc">Conflicting declarations were detected between different views of this product. Conflicting declarations automatically invalidate compliance.</p>
-        <div id="conflictDetailsList" class="conflict-details-list">
-          <!-- Populated by JS -->
-        </div>
-      </div>
+        // Mode Switcher Elements
+        const tabUpload = document.getElementById('tabUpload');
+        const tabCamera = document.getElementById('tabCamera');
+        const viewUpload = document.getElementById('viewUpload');
+        const viewCamera = document.getElementById('viewCamera');
 
-      <!-- The Five Mandatory Checks Grid -->
-      <div class="section-title-row">
-        <h3>Mandatory Legal Declarations (5 Core Checks)</h3>
-        <span class="rules-law-cite">Legal Metrology (Packaged Commodities) Rules, 2011</span>
-      </div>
+        // File Upload Elements
+        const fileInput = document.getElementById('fileInput');
+        const uploadPrompt = document.getElementById('uploadPrompt');
+        const previewContainer = document.getElementById('previewContainer');
+        const previewGrid = document.getElementById('previewGrid');
+        const fileNameDisplay = document.getElementById('fileName');
+        const selectedCountBadge = document.getElementById('selectedCountBadge');
+        const changeFilesBtn = document.getElementById('changeFilesBtn');
 
-      <div id="rulesGrid" class="rules-grid">
-        <!-- 5 Cards populated by JS: Product Name, Manufacturer, Net Quantity, MRP, Consumer Care -->
-      </div>
+        // Camera Elements
+        const cameraFeed = document.getElementById('cameraFeed');
+        const snapshotCanvas = document.getElementById('snapshotCanvas');
+        const capturedPreview = document.getElementById('capturedPreview');
+        const startCameraBtn = document.getElementById('startCameraBtn');
+        const captureBtn = document.getElementById('captureBtn');
+        const retakeBtn = document.getElementById('retakeBtn');
+        const cameraStandbyPrompt = document.getElementById('cameraStandbyPrompt');
 
-      <!-- Expandable Technical OCR Details -->
-      <details class="tech-details-drawer">
-        <summary class="drawer-summary">
-          <span>Technical Evidence & Raw OCR per View</span>
-          <span class="drawer-arrow">▼</span>
-        </summary>
-        <div id="techOcrContent" class="drawer-content">
-          <!-- Per-image tabs or blocks populated by JS -->
-        </div>
-      </details>
+        // Action & Results Elements
+        const analyzeBtn = document.getElementById('analyzeBtn');
+        const analyzeBtnSpinner = document.getElementById('analyzeBtnSpinner');
+        const analyzeBtnIcon = document.getElementById('analyzeBtnIcon');
+        const analyzeBtnText = document.getElementById('analyzeBtnText');
+        const resetAuditBtn = document.getElementById('resetAuditBtn');
+        const alertBanner = document.getElementById('alertBanner');
+        const alertMessage = document.getElementById('alertMessage');
+        const alertCloseBtn = document.getElementById('alertCloseBtn');
 
-      <!-- Bottom Action Bar -->
-      <div class="action-bar result-actions">
-        <button id="scanAnotherBtn" class="btn btn-primary">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
-          </svg>
-          Scan Another Product
-        </button>
-      </div>
+        const initialState = document.getElementById('initialState');
+        const resultsContainer = document.getElementById('resultsContainer');
 
-    </section>
+        let selectedFiles = [];
+        let capturedBlob = null;
+        let mediaStream = null;
 
-  </main>
+        // Tab Switching
+        tabUpload.addEventListener('click', () => {
+            tabUpload.className = "flex-1 py-2 text-xs font-semibold rounded-lg bg-white text-slate-900 shadow-sm transition cursor-pointer flex items-center justify-center gap-1.5";
+            tabCamera.className = "flex-1 py-2 text-xs font-semibold rounded-lg text-slate-500 hover:text-slate-900 transition cursor-pointer flex items-center justify-center gap-1.5";
+            viewUpload.classList.remove('hidden');
+            viewCamera.classList.add('hidden');
+            stopCamera();
+            updateAnalyzeButton();
+        });
 
-  <!-- Official Footer -->
-  <footer class="app-footer">
-    <p>Smart India Hackathon 2026 &bull; Problem SIH26034 &bull; Legal Metrology Packaged Commodities Rule Verification Engine</p>
-    <p class="disclaimer-note">Scope notice: This MVP verifies the presence and internal consistency of the five mandatory declarations. It does not replace physical inspection by an authorized Legal Metrology officer.</p>
-  </footer>
+        tabCamera.addEventListener('click', () => {
+            tabCamera.className = "flex-1 py-2 text-xs font-semibold rounded-lg bg-white text-slate-900 shadow-sm transition cursor-pointer flex items-center justify-center gap-1.5";
+            tabUpload.className = "flex-1 py-2 text-xs font-semibold rounded-lg text-slate-500 hover:text-slate-900 transition cursor-pointer flex items-center justify-center gap-1.5";
+            viewCamera.classList.remove('hidden');
+            viewUpload.classList.add('hidden');
+            updateAnalyzeButton();
+        });
 
-  <script src="app.js"></script>
+        // File Selection Handling (1 to 4 images)
+        fileInput.addEventListener('change', function(e) {
+            const files = Array.from(e.target.files);
+            if (!files.length) return;
+
+            if (files.length > 4) {
+                showAlert("Maximum 4 images allowed per product package. First 4 images selected.");
+                selectedFiles = files.slice(0, 4);
+            } else {
+                hideAlert();
+                selectedFiles = files;
+            }
+
+            renderFilePreviews();
+            updateAnalyzeButton();
+        });
+
+        changeFilesBtn.addEventListener('click', () => {
+            fileInput.click();
+        });
+
+        function renderFilePreviews() {
+            previewGrid.innerHTML = '';
+            if (selectedFiles.length === 0) {
+                uploadPrompt.classList.remove('hidden');
+                previewContainer.classList.add('hidden');
+                selectedCountBadge.classList.add('hidden');
+                return;
+            }
+
+            uploadPrompt.classList.add('hidden');
+            previewContainer.classList.remove('hidden');
+            selectedCountBadge.classList.remove('hidden');
+            selectedCountBadge.textContent = `${selectedFiles.length}/4 images`;
+
+            selectedFiles.forEach((file, index) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const thumb = document.createElement('div');
+                    thumb.className = 'relative rounded-lg overflow-hidden border border-slate-200 aspect-square bg-slate-50 shadow-xs flex items-center justify-center';
+                    thumb.innerHTML = `
+                        <img src="${e.target.result}" alt="View ${index + 1}" class="w-full h-full object-cover">
+                        <span class="absolute bottom-1 left-1 bg-black/60 text-white text-[9px] px-1.5 py-0.5 rounded font-medium">View ${index + 1}</span>
+                    `;
+                    previewGrid.appendChild(thumb);
+                };
+                reader.readAsDataURL(file);
+            });
+
+            fileNameDisplay.textContent = selectedFiles.map(f => f.name).join(', ');
+        }
+
+        // Camera Controls
+        async function openCamera() {
+            try {
+                mediaStream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } }
+                });
+                cameraFeed.srcObject = mediaStream;
+                cameraFeed.classList.remove('hidden');
+                cameraStandbyPrompt.classList.add('hidden');
+                capturedPreview.classList.add('hidden');
+                startCameraBtn.textContent = "Camera Live";
+                startCameraBtn.disabled = true;
+                captureBtn.disabled = false;
+                retakeBtn.classList.add('hidden');
+                hideAlert();
+            } catch (err) {
+                showAlert("Unable to access camera. Please check camera permissions or use File Upload.");
+                console.error(err);
+            }
+        }
+
+        startCameraBtn.addEventListener('click', openCamera);
+
+        captureBtn.addEventListener('click', () => {
+            const width = cameraFeed.videoWidth || 640;
+            const height = cameraFeed.videoHeight || 480;
+            snapshotCanvas.width = width;
+            snapshotCanvas.height = height;
+            
+            const ctx = snapshotCanvas.getContext('2d');
+            ctx.drawImage(cameraFeed, 0, 0, width, height);
+            
+            snapshotCanvas.toBlob((blob) => {
+                capturedBlob = blob;
+                const url = URL.createObjectURL(blob);
+                capturedPreview.src = url;
+                capturedPreview.classList.remove('hidden');
+                cameraFeed.classList.add('hidden');
+                
+                stopCamera();
+                startCameraBtn.textContent = "Start Camera";
+                startCameraBtn.disabled = false;
+                captureBtn.disabled = true;
+                retakeBtn.classList.remove('hidden');
+                updateAnalyzeButton();
+            }, 'image/jpeg', 0.95);
+        });
+
+        retakeBtn.addEventListener('click', () => {
+            capturedBlob = null;
+            capturedPreview.classList.add('hidden');
+            retakeBtn.classList.add('hidden');
+            openCamera();
+            updateAnalyzeButton();
+        });
+
+        function stopCamera() {
+            if (mediaStream) {
+                mediaStream.getTracks().forEach(track => track.stop());
+                mediaStream = null;
+            }
+        }
+
+        function updateAnalyzeButton() {
+            const isUploadActive = !viewUpload.classList.contains('hidden');
+            if (isUploadActive) {
+                analyzeBtn.disabled = selectedFiles.length === 0;
+            } else {
+                analyzeBtn.disabled = capturedBlob === null;
+            }
+        }
+
+        function showAlert(msg) {
+            alertMessage.textContent = msg;
+            alertBanner.classList.remove('hidden');
+        }
+
+        function hideAlert() {
+            alertBanner.classList.add('hidden');
+        }
+
+        alertCloseBtn.addEventListener('click', hideAlert);
+
+        // API Scan Call
+        analyzeBtn.addEventListener('click', async function() {
+            const isUploadActive = !viewUpload.classList.contains('hidden');
+            const formData = new FormData();
+
+            if (isUploadActive) {
+                if (selectedFiles.length === 0) return;
+                selectedFiles.forEach(f => formData.append('files', f));
+            } else {
+                if (!capturedBlob) return;
+                formData.append('files', capturedBlob, 'captured_view.jpg');
+            }
+
+            // Loading state
+            analyzeBtn.disabled = true;
+            analyzeBtnSpinner.classList.remove('hidden');
+            analyzeBtnIcon.classList.add('hidden');
+            analyzeBtnText.textContent = "Scanning & Auditing...";
+            hideAlert();
+
+            try {
+                const response = await fetch('/scan', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    const errData = await response.json().catch(() => ({}));
+                    throw new Error(errData.detail || `Server error (${response.status})`);
+                }
+
+                const data = await response.json();
+                renderAuditResults(data);
+
+            } catch (err) {
+                showAlert(err.message || "Failed to analyze product. Please verify server connection.");
+                console.error(err);
+            } finally {
+                analyzeBtnSpinner.classList.add('hidden');
+                analyzeBtnIcon.classList.remove('hidden');
+                analyzeBtnText.textContent = "Analyze Label Compliance";
+                analyzeBtn.disabled = false;
+            }
+        });
+
+        // Render Audit Results
+        function renderAuditResults(data) {
+            initialState.classList.add('hidden');
+            resultsContainer.classList.remove('hidden');
+            resetAuditBtn.classList.remove('hidden');
+
+            const compliance = data.compliance || {};
+            const isCompliant = compliance.status === "COMPLIANT";
+            const score = compliance.score || 0;
+            const checks = data.checks || [];
+            const fields = data.fields || {};
+            const conflicts = data.conflicts || {};
+
+            // 1. Top Overview Banner
+            const overviewBanner = document.getElementById('complianceOverviewBanner');
+            const statusBadgeIconContainer = document.getElementById('statusBadgeIconContainer');
+            const statusIcon = document.getElementById('statusIcon');
+            const statusBadgeTag = document.getElementById('statusBadgeTag');
+            const statusHeading = document.getElementById('statusHeading');
+            const summaryText = document.getElementById('summaryText');
+            const scoreValue = document.getElementById('scoreValue');
+            const reportProductName = document.getElementById('reportProductName');
+
+            scoreValue.textContent = `${score}%`;
+            reportProductName.textContent = fields.product_name ? `• ${fields.product_name}` : '';
+
+            if (isCompliant) {
+                overviewBanner.className = "p-5 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4 border shadow-xs bg-teal-50/70 border-teal-200 text-teal-950";
+                statusBadgeIconContainer.className = "p-3 rounded-xl flex-shrink-0 mt-0.5 bg-teal-700 text-white";
+                statusIcon.setAttribute('data-lucide', 'check-circle-2');
+                statusBadgeTag.className = "text-xs font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-md bg-teal-700 text-white";
+                statusBadgeTag.textContent = "Compliant";
+                statusHeading.textContent = "Fully Compliant with Packaged Commodities Rules";
+                summaryText.textContent = compliance.summary || "All 5 mandatory declarations required by Legal Metrology Rules, 2011 were detected.";
+            } else {
+                overviewBanner.className = "p-5 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4 border shadow-xs bg-rose-50/70 border-rose-200 text-rose-950";
+                statusBadgeIconContainer.className = "p-3 rounded-xl flex-shrink-0 mt-0.5 bg-rose-600 text-white";
+                statusIcon.setAttribute('data-lucide', 'alert-octagon');
+                statusBadgeTag.className = "text-xs font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-md bg-rose-600 text-white";
+                statusBadgeTag.textContent = "Action Required: Non-Compliant";
+                statusHeading.textContent = "Non-Compliant: Declarations Missing or Conflicting";
+                summaryText.textContent = compliance.summary || "One or more mandatory declarations are missing or conflicting across package views.";
+            }
+
+            // 2. Metadata Stats
+            document.getElementById('metaImageCount').textContent = data.images ? data.images.length : 1;
+            document.getElementById('metaOcrConfidence').textContent = `${data.ocr_confidence || 0}%`;
+
+            // 3. Missing Fields List
+            const missingCard = document.getElementById('missingFieldsCard');
+            const missingList = document.getElementById('missingFieldsList');
+            missingList.innerHTML = '';
+            const failedChecks = checks.filter(c => c.status === "FAIL");
+
+            if (failedChecks.length > 0) {
+                missingCard.classList.remove('hidden');
+                failedChecks.forEach(c => {
+                    const li = document.createElement('li');
+                    li.textContent = `${c.name}: ${c.reason || 'Missing on label'}`;
+                    missingList.appendChild(li);
+                });
+            } else {
+                missingCard.classList.add('hidden');
+            }
+
+            // 4. Conflicts List
+            const conflictsCard = document.getElementById('conflictsCard');
+            const conflictsList = document.getElementById('conflictsList');
+            conflictsList.innerHTML = '';
+            const conflictKeys = Object.keys(conflicts);
+
+            if (conflictKeys.length > 0) {
+                conflictsCard.classList.remove('hidden');
+                conflictKeys.forEach(k => {
+                    const li = document.createElement('li');
+                    li.textContent = `${k.replace('_', ' ').toUpperCase()}: Inconsistent values detected between images`;
+                    conflictsList.appendChild(li);
+                });
+            } else {
+                conflictsCard.classList.add('hidden');
+            }
+
+            // 5. Five Mandatory Checks Cards
+            const rulesList = document.getElementById('rulesList');
+            rulesList.innerHTML = '';
+
+            checks.forEach(check => {
+                const passed = check.status === "PASS";
+                const card = document.createElement('div');
+                card.className = `p-3.5 rounded-xl border flex items-start justify-between gap-3 transition-all ${
+                    passed ? 'bg-white border-slate-200 hover:border-teal-300' : 'bg-rose-50/50 border-rose-200'
+                }`;
+
+                const iconColor = passed ? 'text-teal-600 bg-teal-50' : 'text-rose-600 bg-rose-100';
+                const iconName = passed ? 'check' : 'x';
+                const tagColor = passed ? 'bg-teal-50 text-teal-700 border border-teal-200' : 'bg-rose-100 text-rose-700 border border-rose-200';
+
+                card.innerHTML = `
+                    <div class="flex items-start gap-3">
+                        <div class="w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5 ${iconColor}">
+                            <i data-lucide="${iconName}" class="w-4 h-4"></i>
+                        </div>
+                        <div>
+                            <div class="flex items-center gap-2">
+                                <span class="font-bold text-sm text-slate-800">${check.name}</span>
+                                <span class="text-[10px] font-mono text-slate-400">${check.rule_id}</span>
+                            </div>
+                            <p class="text-xs text-slate-500 mt-0.5">${check.reason || ''}</p>
+                            ${check.value ? `<p class="text-xs font-semibold text-slate-700 mt-1.5 px-2 py-0.5 rounded bg-slate-100 inline-block font-mono">Extracted: ${escapeHtml(check.value)}</p>` : ''}
+                        </div>
+                    </div>
+                    <span class="text-[10px] font-extrabold uppercase tracking-wider px-2 py-1 rounded-md flex-shrink-0 ${tagColor}">
+                        ${check.status}
+                    </span>
+                `;
+                rulesList.appendChild(card);
+            });
+
+            // 6. Technical Evidence
+            document.getElementById('rawOcrContent').textContent = data.ocr_text || '(No text extracted)';
+
+            // Re-render Lucide icons for dynamically inserted elements
+            lucide.createIcons();
+        }
+
+        // Reset Button
+        resetAuditBtn.addEventListener('click', () => {
+            initialState.classList.remove('hidden');
+            resultsContainer.classList.add('hidden');
+            resetAuditBtn.classList.add('hidden');
+            selectedFiles = [];
+            capturedBlob = null;
+            fileInput.value = '';
+            renderFilePreviews();
+            if (capturedPreview) capturedPreview.classList.add('hidden');
+            updateAnalyzeButton();
+        });
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+        }
+    </script>
 </body>
 </html>
