@@ -8,7 +8,7 @@ if str(BACKEND_DIR) not in sys.path:
 
 from ocr.engine import extract_text
 
-IMAGE_PATH = ROOT_DIR / "sample_images" / "product1.jpg"
+IMAGE_PATH = ROOT_DIR / "sample_images" / "kurkure.jpg.jpeg"
 
 
 if __name__ == "__main__":

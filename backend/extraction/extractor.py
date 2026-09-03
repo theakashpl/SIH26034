@@ -110,7 +110,8 @@ DISQUALIFYING_PRODUCT_TERMS = [
     "invoice", "serial", "document", "receipt", "voucher", "who wants that",
     "no beef", "no chicken", "no beans", "open when ready", "can't find the truth",
     "in a hurry", "the truth", "never heard", "closed his doors",
-    "world's best", "as compared to", "made with", "www.", "http"
+    "world's best", "as compared to", "made with", "www.", "http",
+    "energy", "nonace", "sugar", "invert sugar", "contact", "vile parle", "prestige", "whitefield", "shantiniketan"
 ]
 
 
@@ -269,23 +270,45 @@ def extract_product_name(text: str) -> dict:
         if clean_l.isupper() or all(w[0].isupper() for w in words if w and w[0].isalpha()):
             candidate_lines.append(clean_l)
 
-    if candidate_lines:
-        cat_lines = [c for c in candidate_lines if any(kw in c.lower() for kw in category_product_words)]
-        eval_lines = cat_lines if cat_lines else candidate_lines
+    DESCRIPTOR_WORDS = {
+        "premium", "gold", "classic", "original", "rich", "pure",
+        "fresh", "crisp", "crispy", "royal", "select", "choice", "special", "deluxe"
+    }
 
-        # If the first three lines look like Brand + Descriptor + Product (e.g. Avogro + Premium + Pistachios or MILK + CHOCO + CHIPS)
-        if (
-            len(eval_lines) >= 3
-            and all(len(c.split()) <= 2 for c in eval_lines[:3])
-            and len(" ".join(eval_lines[:3]).split()) <= 5
-        ):
-            combined_3 = f"{eval_lines[0]} {eval_lines[1]} {eval_lines[2]}"
-            return {"value": combined_3, "raw": combined_3, "confidence": 0.85}
-        # If the first two lines look like Brand + Product (e.g. HALDIRAM'S + CLASSIC SALTED CHIPS or BUTTER + COOKIES)
-        if len(eval_lines) >= 2 and len(eval_lines[0].split()) <= 2 and len(eval_lines[1].split()) <= 5:
-            combined = f"{eval_lines[0]} {eval_lines[1]}"
-            return {"value": combined, "raw": combined, "confidence": 0.80}
-        return {"value": eval_lines[0], "raw": eval_lines[0], "confidence": 0.75}
+    if candidate_lines:
+        scored_candidates = []
+        for idx, c in enumerate(candidate_lines):
+            has_cat = any(kw in c.lower() for kw in category_product_words)
+            if has_cat:
+                # Check for 3-line combination: Brand + Descriptor/Category + Commodity (e.g. Avegro + Premium + Pistachios or MILK + CHOCO + CHIPS)
+                if idx >= 2:
+                    c_prev1 = candidate_lines[idx - 1]
+                    c_prev2 = candidate_lines[idx - 2]
+                    if any(d in c_prev1.lower() for d in DESCRIPTOR_WORDS) or any(k in c_prev1.lower() for k in category_product_words):
+                        if len(c_prev2.split()) <= 2 and len(c_prev1.split()) <= 2 and len(c.split()) <= 2:
+                            combo3 = f"{c_prev2} {c_prev1} {c}"
+                            scored_candidates.append({"value": combo3, "raw": combo3, "confidence": 0.90, "score": 10})
+                # Check for 2-line combination: Descriptor/Category + Commodity (e.g. BUTTER + COOKIES or Premium + Pistachios)
+                if idx >= 1:
+                    c_prev1 = candidate_lines[idx - 1]
+                    if any(d in c_prev1.lower() for d in DESCRIPTOR_WORDS) or any(k in c_prev1.lower() for k in category_product_words):
+                        if len(c_prev1.split()) <= 2 and len(c.split()) <= 3:
+                            combo2 = f"{c_prev1} {c}"
+                            scored_candidates.append({"value": combo2, "raw": combo2, "confidence": 0.85, "score": 8})
+                # Single-line commodity match (e.g. BISCUITS, MAD ANGLES, Kurkure)
+                scored_candidates.append({"value": c, "raw": c, "confidence": 0.80, "score": 6})
+
+        # Fallback if no line matched a statutory category word
+        if not scored_candidates:
+            if len(candidate_lines) >= 2 and len(candidate_lines[0].split()) <= 2 and len(candidate_lines[1].split()) <= 4:
+                combo = f"{candidate_lines[0]} {candidate_lines[1]}"
+                scored_candidates.append({"value": combo, "raw": combo, "confidence": 0.80, "score": 5})
+            for c in candidate_lines:
+                scored_candidates.append({"value": c, "raw": c, "confidence": 0.75, "score": 4})
+
+        if scored_candidates:
+            best = max(scored_candidates, key=lambda x: (x["score"], x["confidence"], len(x["value"])))
+            return {"value": best["value"], "raw": best["raw"], "confidence": best["confidence"]}
 
     # 6. Fallback: repeated capitalized product category phrase in body text
     cat_match = re.findall(

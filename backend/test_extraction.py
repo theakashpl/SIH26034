@@ -273,6 +273,7 @@ class TestInformationExtraction(unittest.TestCase):
     def test_16_real_sample_sunrise_biscuits(self):
         sample_dir = Path(__file__).parent.parent / "sample_images"
         possible_paths = [
+            sample_dir / "digestive.jpg.jpeg",
             sample_dir / "sunrise_digestive_biscuits.jpeg",
             sample_dir / "WhatsApp Image 2026-09-03 at 11.16.58 AM.jpeg"
         ]

@@ -256,11 +256,15 @@ class TestMultiImageScanning(unittest.TestCase):
     # --- TEST 15: Real two-image pistachio scan passes 100% compliant without conflict ---
     def test_15_real_two_image_pistachio_scan(self):
         sample_dir = Path(__file__).parent.parent / "sample_images"
-        back_p = sample_dir / "pistachio_back.jpeg"
+        back_p = sample_dir / "clickcart.jpg.jpeg"
+        if not back_p.exists():
+            back_p = sample_dir / "pistachio_back.jpeg"
         if not back_p.exists():
             back_p = sample_dir / "WhatsApp Image 2026-09-03 at 11.18.16 AM.jpeg"
 
-        front_p = sample_dir / "pistachio_front.jpeg"
+        front_p = sample_dir / "avogro_front.jpg.jpeg"
+        if not front_p.exists():
+            front_p = sample_dir / "pistachio_front.jpeg"
         if not front_p.exists():
             front_p = sample_dir / "WhatsApp Image 2026-09-03 at 11.19.37 AM.jpeg"
 
