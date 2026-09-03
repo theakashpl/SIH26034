@@ -526,27 +526,52 @@ def extract_net_quantity(text: str) -> dict:
         except ValueError:
             pass
 
-    # 2. Standalone quantity search strictly ignoring nutrition and serving declarations
+    # 2. Standalone quantity search — used only when no explicit NET WEIGHT/QTY label is found.
+    # Very strict: the quantity token must be isolated / near-only content of the line.
+    # Rejects nutritional tables, ingredient percentages, address blocks, and any ambiguous lines.
     forbidden_terms = [
         "serving size", "serving per", "per serving", "servings", "per serve", "serve", "serving",
-        "approx", "portion", "adult's", "gda",
+        "approx", "approximately", "portion", "adult's", "gda",
         "total fat", "saturated fat", "trans fat", "sodium", "cholesterol",
         "total carb", "sugars", "dietary fiber", "protein", "vitamin", "calcium", "iron",
-        "daily value", "%", "less than", "energy", "carbohydrate", "fat", "kcal", "kj",
+        "daily value", "less than", "energy", "carbohydrate", "fat", "kcal", "kj",
         "dimension", "dimensions", "height", "width", "length", "depth", "size",
         "phone", "tel", "lic", "licence", "license", "fssai", "batch", "b.no", "b. no",
-        "lot", "mfg", "mfd", "pkd", "exp", "expiry", "use by", "best before", "date"
+        "lot no", "lot", "mfg", "mfd", "pkd", "exp", "expiry", "use by", "best before", "date",
+        "road", "nagar", "street", "lane", "sector", "plot", "village", "district", "state",
+        "pvt", "ltd", "limited", "inc", "corp", "manufacturer", "packed by", "marketed by",
+        "ingredients", "ingredient", "contains", "nutrition", "nutritional",
+        "per 100", "per100", "per 30", "per 50", "per serving",
+        "barcode", "mrp", "rs.", "₹", "price",
+        "no.", "no :", "no:",   # batch/lot number lines
+        "%",   # any percentage (ingredient %, DRV %)
+        "flour", "wheat", "maida", "oil", "salt", "sugar", "water", "milk", "butter",
+        "colour", "color", "flavour", "flavor", "emulsifier", "preservative",
+        "palmolein", "refined", "starch", "raising", "agent",
+        "calorie", "calories", "kilo",
     ]
 
     lines = cleaned.split("\n")
     for line in lines:
-        lower_line = line.lower()
+        line_stripped = line.strip()
+        lower_line = line_stripped.lower()
+
+        # Skip empty or long lines (nutritional tables, address blocks, ingredient lists)
+        # Strict upper limit of 40 chars: a net weight line is short (e.g. "Net Wt. 100g" or "200 ml")
+        if not line_stripped or len(line_stripped) > 40:
+            continue
+
         if any(term in lower_line for term in forbidden_terms):
+            continue
+
+        # Skip lines with multiple numbers (likely nutritional facts rows or addresses)
+        all_nums = re.findall(r"\b\d+(?:\.\d+)?\b", line_stripped)
+        if len(all_nums) > 1:
             continue
 
         qty_match = re.search(
             r"\b(?:Net\s*)?(\d+(?:\.\d+)?)\s*(kg|kgs|g|gm|gms|gram|grams|mg|l|ltr|litre|litres|ml)\b",
-            line,
+            line_stripped,
             re.IGNORECASE
         )
         if qty_match:
@@ -554,12 +579,18 @@ def extract_net_quantity(text: str) -> dict:
             unit = unit_map.get(unit_raw, unit_raw)
             try:
                 val = float(val_str)
-                if 0.1 <= val <= 50000:
+                # Tighter sanity range for consumer packaged goods (1g to 5000g / 5L)
+                # Values below 1 are likely punctuation noise; above 5000 are likely not net weight
+                if 1 <= val <= 5000:
+                    # Extra guard: reject if the matched value is a common year, PIN code,
+                    # or known statutory number (2011, 2009, etc.)
+                    if val in {2011, 2012, 2013, 2014, 2015, 2016, 2009, 2010}:
+                        continue
                     return {
                         "value": int(val) if val.is_integer() else val,
                         "unit": unit,
-                        "raw": line.strip(),
-                        "confidence": 0.80
+                        "raw": line_stripped,
+                        "confidence": 0.72  # lower than explicit label match (0.95)
                     }
             except ValueError:
                 pass
