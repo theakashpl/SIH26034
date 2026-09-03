@@ -2,37 +2,41 @@
   {
     "id": "LM-001",
     "name": "Product Name",
+    "field": "product_name",
     "type": "required",
-    "severity": "HIGH"
+    "severity": "HIGH",
+    "description": "Common or generic name of the commodity must be declared on the package."
   },
   {
     "id": "LM-002",
-    "name": "Manufacturer / Packer / Importer",
+    "name": "Manufacturer",
+    "field": "manufacturer",
     "type": "required",
-    "severity": "HIGH"
+    "severity": "HIGH",
+    "description": "Name and address of the manufacturer, packer, or importer must be declared."
   },
   {
     "id": "LM-003",
     "name": "Net Quantity",
+    "field": "net_quantity",
     "type": "quantity",
-    "severity": "HIGH"
+    "severity": "HIGH",
+    "description": "Net quantity in standard units of weight, measure, or number must be declared."
   },
   {
     "id": "LM-004",
     "name": "MRP",
+    "field": "mrp",
     "type": "mrp",
-    "severity": "HIGH"
+    "severity": "HIGH",
+    "description": "Maximum Retail Price inclusive of all taxes must be declared."
   },
   {
     "id": "LM-005",
-    "name": "Manufacturing / Packing Date",
-    "type": "date",
-    "severity": "MEDIUM"
-  },
-  {
-    "id": "LM-006",
-    "name": "Consumer Care",
+    "name": "Consumer Information",
+    "field": "consumer_care",
     "type": "contact",
-    "severity": "MEDIUM"
+    "severity": "HIGH",
+    "description": "Consumer care contact details (phone and/or email address) must be declared."
   }
 ]
