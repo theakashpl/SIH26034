@@ -338,13 +338,34 @@ def extract_mrp(text: str) -> dict:
     Extract Maximum Retail Price with currency and numeric normalization.
     Tolerates OCR punctuation, spacing, multiline declarations, comma grouping,
     and corrupted currency symbols (e.g. &, =, a, ee, quotes, replacement chars)
-    while strictly protecting against false positives from unit sale price,
-    nutritional facts, serving sizes, batch numbers, and barcode data.
+    while strictly protecting against false positives from missing declaration indicators
+    ('NOT DECLARED', 'N/A', 'NIL'), statutory citations ('Rules, 2011', 'Act, 2009'),
+    unit sale price, nutritional facts, serving sizes, batch numbers, and barcode data.
     """
     if not text:
         return {"value": None, "currency": "INR", "raw": None, "confidence": 0.0}
 
     cleaned = clean_text_for_extraction(text)
+
+    # Negative declaration markers that indicate MRP is intentionally missing / violated
+    NEGATION_MARKERS = [
+        r"\bnot\s+declared\b", r"\bnot\s+mentioned\b", r"\bnot\s+printed\b",
+        r"\bnot\s+specified\b", r"\bnot\s+available\b", r"\bmissing\b",
+        r"\bn/?a\b", r"\bnil\b", r"\bnone\b", r"\bno\s+mrp\b", r"\bno\s+price\b"
+    ]
+
+    # Stop candidate block at major unrelated section boundary
+    stop_sections = [
+        "ingredients", "nutrition", "nutritional", "consumer care", "customer care",
+        "care cell", "feedback", "complaint", "manufactured by", "packed by", "marketed by",
+        "directions", "instructions", "storage", "keep in", "store in"
+    ]
+
+    # Non-monetary context keywords preceding numbers that disqualify a candidate
+    DISQUALIFYING_PRECEDING_CONTEXT = re.compile(
+        r"(?:\b(?:rules?|act|section|clause|law|order|year|mfd|pkd|packed|exp|date|batch|b\.?\s*no|lot(?:\s*no)?|serving|servings|fat|protein|carb|sodium|sugar|energy|trans\s*fat|kcal|cal|mg|fssai|lic(?:ense)?|lic\.?\s*no|tel|phone|pin(?:code)?|box|p\.?\s*o\.?\s*box|no)\b[,:\-\s]*)$",
+        re.IGNORECASE
+    )
 
     # 1. Explicit MRP declaration with robust label variations and corrupted symbol handling
     mrp_label_regex = re.compile(
@@ -353,11 +374,6 @@ def extract_mrp(text: str) -> dict:
     )
 
     candidates_found = []
-    stop_sections = [
-        "ingredients", "nutrition", "nutritional", "consumer care", "customer care",
-        "care cell", "feedback", "complaint", "manufactured by", "packed by", "marketed by",
-        "directions", "instructions", "storage", "keep in", "store in"
-    ]
 
     for match in mrp_label_regex.finditer(cleaned):
         after_text = cleaned[match.end():match.end() + 250]
@@ -370,10 +386,16 @@ def extract_mrp(text: str) -> dict:
             if i > 0 and any(s in l_lower for s in stop_sections):
                 break
             candidate_block_lines.append(line)
-            if len([l for l in candidate_block_lines if l.strip()]) >= 6:
+            if len([l for l in candidate_block_lines if l.strip()]) >= 4:
                 break
 
         block_text = " ".join(candidate_block_lines)
+
+        # Check for explicit negation in the immediate block
+        block_lower = block_text.lower()
+        if any(re.search(neg, block_lower) for neg in NEGATION_MARKERS):
+            # Explicitly declared as missing / not declared -> do not extract a price
+            continue
 
         # Match monetary amount in the candidate block
         # Protects against unit sale price, units (g, kg, ml), and non-monetary identifiers
@@ -381,7 +403,7 @@ def extract_mrp(text: str) -> dict:
             r"(?:"
             r"(?:\([^\)\n]*tax[^\)\n]*\)\s*)?"
             r"[:.\-\s]*"
-            r"(?:₹|Rs\.?|INR|Re\.?|[&=\"\'`\ufffd<>\?~^=%\$#@!\*\+;]|ee|\b[a-z]{1,2}\b)?"
+            r"(?:₹|Rs\.?|INR|Re\.?|[&=\"\'`\ufffd<>\?~^=%\$#@!\*\+;]|ee)?"
             r"\s*"
             r"(?:\([^\)\n]*tax[^\)\n]*\)\s*)?"
             r")"
@@ -393,13 +415,29 @@ def extract_mrp(text: str) -> dict:
         )
 
         for val_match in mrp_val_regex.finditer(block_text):
+            # Check what comes immediately before this number in block_text
+            pre_context = block_text[:val_match.start()].strip()
+            if pre_context and DISQUALIFYING_PRECEDING_CONTEXT.search(pre_context):
+                continue
+
+            # If there is no explicit currency symbol, require the number to be
+            # very close to the MRP label (within 30 chars) to avoid false positives
+            # from nearby quantity/batch/nutritional numbers.
+            has_explicit_curr = bool(re.search(r"[₹%]|Rs\.?|INR", val_match.group(0), re.IGNORECASE))
+            if not has_explicit_curr and val_match.start() > 30:
+                # Too far from MRP header without a currency symbol -> likely unrelated text
+                continue
+
             val_str = val_match.group(1).replace(",", "")
             try:
                 val = float(val_str)
+                # Ignore common year/statutory numbers unless currency is explicit
+                if not has_explicit_curr and (val in [2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026, 201, 2009]):
+                    continue
+
                 if 0.5 <= val <= 99999:
                     normalized_val = int(val) if val.is_integer() else val
                     raw_span = " ".join((match.group(0) + " " + block_text[:val_match.end()]).split())
-                    has_explicit_curr = bool(re.search(r"[₹%]|Rs\.?|INR", val_match.group(0), re.IGNORECASE))
                     candidates_found.append({
                         "value": normalized_val,
                         "currency": "INR",
